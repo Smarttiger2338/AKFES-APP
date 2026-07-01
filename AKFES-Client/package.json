@@ -1,0 +1,33 @@
+{
+  "name": "akfes-client",
+  "version": "1.0.0",
+  "description": "AKFES: Arduino Keypad-Based File Encryption and Decryption System",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "obfuscate": "javascript-obfuscator client/static/app.js --output client/static/app.obf.js --compact true --control-flow-flattening true",
+    "use-obfuscated": "node electron/use-obfuscated.js",
+    "use-original": "node electron/use-original.js",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "javascript-obfuscator": "^4.1.1"
+  },
+  "build": {
+    "appId": "com.akfes.client",
+    "productName": "AKFES",
+    "asar": true,
+    "files": [
+      "electron/**/*",
+      "client/**/*",
+      "arduino/project.ino",
+      "README_CLIENT.md"
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  }
+}
