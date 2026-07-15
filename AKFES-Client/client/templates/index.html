@@ -2,93 +2,224 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#07111f">
 <title>AKFES</title>
 <link rel="stylesheet" href="../static/style.css">
 <script src="../static/contact_config.js"></script>
 <script src="../static/app.js" defer></script>
+<script src="../static/wizard.js" defer></script>
 </head>
 <body>
-<main>
-    <h1>AKFES</h1>
-    <p class="subtitle">아두이노 키패드 기반 파일 암호화·복호화 시스템</p>
+<div id="splash" class="splash" aria-hidden="true">
+  <div class="splash-orbit"><span></span><span></span><span></span></div>
+  <div class="splash-logo">A</div>
+  <strong>AKFES</strong>
+  <p>Secure file workspace</p>
+  <div class="splash-loader"><i></i></div>
+</div>
 
-    <section class="card">
-        <h2>0. 라이선스 로그인</h2>
-        <input id="licenseKey" type="password" placeholder="발급받은 KEY 입력">
-        <div class="button-row">
-            <button id="loginBtn" type="button">로그인</button>
-            <button id="logoutBtn" type="button" class="secondary">로그아웃</button>
-        </div>
-        <div id="loginStatus" class="status">로그인 필요</div>
-    </section>
+<div class="ambient ambient-a"></div>
+<div class="ambient ambient-b"></div>
+<div class="ambient ambient-c"></div>
 
-
-    <section class="card">
-        <h2>1. 연결</h2>
-        <div class="button-row">
-            <button id="serverBtn" type="button">서버 확인</button>
-            <button id="connectBtn" type="button">아두이노 연결</button>
-            <button id="disconnectBtn" type="button" class="secondary">연결 해제</button>
-        </div>
-        <div id="connectionStatus" class="status">대기 중</div>
-    </section>
-
-    <section class="card">
-        <h2>2. 파일 선택</h2>
-        <input type="file" id="file">
-    </section>
-
-    <section class="card">
-        <h2>3. 작업 선택</h2>
-        <div class="mode-row">
-            <label><input type="radio" name="mode" value="encrypt" checked> 암호화</label>
-            <label><input type="radio" name="mode" value="decrypt"> 복호화</label>
-        </div>
-    </section>
-
-    <section class="card">
-        <h2>4. 키패드 입력</h2>
-        <div id="pw"></div>
-        <p class="hint"># = 실행 / * = 한 글자 삭제</p>
-        <div class="button-row">
-            <button id="runBtn" type="button">실행</button>
-            <button id="clearBtn" type="button" class="secondary">비밀번호 초기화</button>
-        </div>
-    </section>
-
-    <section class="card result-card">
-        <h2>결과</h2>
-        <div id="result">아직 실행하지 않았습니다.</div>
-    </section>
-
-    <details class="advanced">
-        <summary>고급 설정 / 로그</summary>
-
-        <section class="advanced-box">
-            <h3>키패드 매핑</h3>
-            <p class="hint">키가 이상하게 입력될 때만 사용하세요.</p>
-            <div class="button-row">
-                <button id="calibrateBtn" type="button">매핑 시작</button>
-                <button id="resetMapBtn" type="button" class="secondary">매핑 초기화</button>
-            </div>
-            <div id="mappingStatus" class="status">매핑 상태 확인 중...</div>
-        </section>
-
-        <section class="advanced-box">
-            <h3>시리얼 로그</h3>
-            <div id="serialLog">로그 없음</div>
-        </section>
-    </details>
-
-<section class="contact-card">
-    <h2>Contact</h2>
-    <p>AKFES 프로젝트 관련 문의는 아래 채널을 이용해 주세요.</p>
-    <div class="contact-links">
-        <a class="contact-link" href="#" data-contact="telegram" target="_blank" rel="noopener noreferrer"><img src="../static/images/telegram.svg" alt="Telegram"><span>Telegram</span><strong>@Xelphan</strong></a>
-        <a class="contact-link" href="#" data-contact="github" target="_blank" rel="noopener noreferrer"><img src="../static/images/github.svg" alt="GitHub"><span>GitHub</span><strong>@Smarttiger2338</strong></a>
-        <a class="contact-link" href="#" data-contact="instagram" target="_blank" rel="noopener noreferrer"><img src="../static/images/instagram.svg" alt="Instagram"><span>Instagram</span><strong>@was_good_ditto</strong></a>
+<div class="wizard-shell">
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"><span>A</span></div>
+      <div class="brand-copy">
+        <strong>AKFES</strong>
+        <span>Arduino Keypad File Encryption System</span>
+      </div>
     </div>
-</section>
-</main>
+
+    <div class="header-center" aria-hidden="true">
+      <span class="header-line"></span>
+      <span id="headerStage">License Verification</span>
+      <span class="header-line"></span>
+    </div>
+
+    <div class="header-status" aria-label="시스템 상태">
+      <span id="serverBadge" class="badge warning"><span class="badge-dot"></span>Server · 확인 전</span>
+      <span id="arduinoBadge" class="badge danger"><span class="badge-dot"></span>Arduino · 연결 안 됨</span>
+      <span id="sessionBadge" class="badge danger"><span class="badge-dot"></span>Session · 미인증</span>
+    </div>
+  </header>
+
+  <main class="wizard-main">
+    <section class="hero-strip">
+      <div>
+        <span class="hero-kicker">AKFES WORKSPACE</span>
+        <h1 id="heroTitle">보안 세션을 시작하세요</h1>
+        <p id="heroDescription">라이선스 인증부터 파일 처리까지 한 단계씩 안전하게 진행합니다.</p>
+      </div>
+      <div class="hero-shield" aria-hidden="true">
+        <span class="shield-core"></span>
+        <span class="shield-ring ring-one"></span>
+        <span class="shield-ring ring-two"></span>
+      </div>
+    </section>
+
+    <ol class="stepper" aria-label="진행 단계">
+      <li class="active" data-step-indicator="1" tabindex="0"><span>1</span><b>라이선스</b><small>세션 인증</small></li>
+      <li data-step-indicator="2" tabindex="0"><span>2</span><b>장치 연결</b><small>Arduino 확인</small></li>
+      <li data-step-indicator="3" tabindex="0"><span>3</span><b>파일 작업</b><small>암호화·복호화</small></li>
+      <li data-step-indicator="4" tabindex="0"><span>4</span><b>결과</b><small>처리 완료</small></li>
+    </ol>
+
+    <div id="wizardNotice" class="wizard-notice" role="status" aria-live="polite" hidden></div>
+    <div id="toastHost" class="toast-host" aria-live="polite" aria-atomic="true"></div>
+
+    <section class="step-screen active" data-step="1" aria-labelledby="step1Title">
+      <div class="screen-card split-card">
+        <div class="visual-panel visual-license">
+          <div class="visual-grid"></div>
+          <div class="visual-icon icon-lock" aria-hidden="true"></div>
+          <p>SECURE ACCESS</p>
+          <h2>인증된 사용자만<br>파일 처리 기능에 접근합니다.</h2>
+          <ul class="feature-list">
+            <li><span></span>HMAC 기반 라이선스 검증</li>
+            <li><span></span>세션 토큰 발급 및 만료 검사</li>
+            <li><span></span>로컬 서버 상태 자동 확인</li>
+          </ul>
+        </div>
+
+        <div class="form-panel">
+          <p class="eyebrow">STEP 01</p>
+          <h2 id="step1Title">라이선스 인증</h2>
+          <p class="description">발급받은 라이선스 키를 입력해 AKFES 보안 세션을 시작합니다.</p>
+          <label class="field-label" for="licenseKey">라이선스 키</label>
+          <div class="input-shell">
+            <span class="input-icon key-icon" aria-hidden="true"></span>
+            <input id="licenseKey" type="password" placeholder="HCK1.으로 시작하는 KEY 입력" autocomplete="off" spellcheck="false">
+            <button id="toggleLicenseBtn" type="button" class="icon-button" aria-label="라이선스 키 표시 전환"><span class="eye-icon"></span></button>
+          </div>
+          <div id="loginStatus" class="message" role="status" aria-live="polite">로그인 필요</div>
+          <div class="button-row">
+            <button id="loginBtn" type="button" class="primary-button button-glow"><span>인증하고 다음</span><i aria-hidden="true">→</i></button>
+            <button id="logoutBtn" type="button" class="secondary-button">로그아웃</button>
+          </div>
+          <p class="micro-copy">Enter 키로도 인증할 수 있습니다.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-screen" data-step="2" aria-labelledby="step2Title" hidden>
+      <div class="screen-card split-card reverse">
+        <div class="visual-panel visual-device">
+          <div class="device-illustration" aria-hidden="true">
+            <div class="board"><span class="board-led led-one"></span><span class="board-led led-two"></span><i></i></div>
+            <div class="cable"></div>
+            <div class="keypad"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          </div>
+          <p>HARDWARE LINK</p>
+          <h2>Arduino Uno와<br>물리적 키패드를 연결합니다.</h2>
+        </div>
+
+        <div class="form-panel">
+          <p class="eyebrow">STEP 02</p>
+          <h2 id="step2Title">Arduino 연결</h2>
+          <p class="description">USB로 연결된 Arduino Uno의 시리얼 포트를 선택합니다.</p>
+          <div class="connection-card">
+            <div class="connection-pulse"><span></span></div>
+            <div><small>DEVICE STATUS</small><strong id="connectionStatus">아두이노 연결 대기</strong></div>
+          </div>
+          <div class="button-row">
+            <button id="connectBtn" type="button" class="primary-button button-glow"><span>포트 선택 및 연결</span><i aria-hidden="true">↗</i></button>
+            <button id="disconnectBtn" type="button" class="secondary-button">연결 해제</button>
+          </div>
+          <button id="serverBtn" type="button" class="text-button">서버 상태 다시 확인</button>
+          <div class="nav-row">
+            <button type="button" class="secondary-button" data-prev>← 이전</button>
+            <button id="deviceNextBtn" type="button" class="primary-button" data-next disabled>다음 →</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-screen" data-step="3" aria-labelledby="step3Title" hidden>
+      <div class="screen-card workspace-card">
+        <div class="workspace-heading">
+          <div>
+            <p class="eyebrow">STEP 03</p>
+            <h2 id="step3Title">파일 암호화 및 복호화</h2>
+            <p class="description">파일과 작업 모드를 선택한 뒤 키패드로 비밀번호를 입력하세요.</p>
+          </div>
+          <div class="security-chip"><span></span>AES-256-GCM</div>
+        </div>
+
+        <div id="dropZone" class="drop-zone" role="button" tabindex="0" aria-label="파일 선택 영역">
+          <input type="file" id="file">
+          <div class="drop-visual" aria-hidden="true"><span class="file-sheet"></span><span class="upload-arrow">↑</span></div>
+          <strong>파일을 끌어놓거나 클릭하여 선택</strong>
+          <p>모든 확장자의 파일을 처리할 수 있습니다.</p>
+          <span id="fileName" class="file-name">선택된 파일 없음</span>
+          <div class="drop-ripple ripple-one"></div><div class="drop-ripple ripple-two"></div>
+        </div>
+
+        <div class="work-grid">
+          <section class="work-panel">
+            <div class="panel-title"><span>01</span><div><strong>작업 모드</strong><small>수행할 기능을 선택하세요.</small></div></div>
+            <div class="mode-row">
+              <label><input type="radio" name="mode" value="encrypt" checked><span class="mode-option"><i class="mode-icon encrypt-icon"></i><b>암호화</b><small>보호된 파일 생성</small><em>선택됨</em></span></label>
+              <label><input type="radio" name="mode" value="decrypt"><span class="mode-option"><i class="mode-icon decrypt-icon"></i><b>복호화</b><small>원본 파일 복원</small><em>선택됨</em></span></label>
+            </div>
+          </section>
+
+          <section class="work-panel">
+            <div class="panel-title"><span>02</span><div><strong>키패드 비밀번호</strong><small># 실행 · * 삭제</small></div></div>
+            <div id="pw" class="password-display" aria-live="polite">키패드 입력 대기 중</div>
+            <div class="password-meter"><i></i><i></i><i></i><i></i></div>
+            <button id="clearBtn" type="button" class="text-button">입력 초기화</button>
+          </section>
+        </div>
+
+        <details class="advanced-box">
+          <summary><span class="settings-icon" aria-hidden="true"></span><b>키패드 고급 설정</b><small>키 입력이 다르게 인식될 때 사용</small></summary>
+          <div class="advanced-content">
+            <p id="mappingStatus">매핑 상태 확인 중...</p>
+            <div class="button-row"><button id="calibrateBtn" type="button" class="secondary-button">매핑 시작</button><button id="resetMapBtn" type="button" class="secondary-button">매핑 초기화</button></div>
+          </div>
+        </details>
+
+        <div id="progressWrap" class="progress-wrap" hidden aria-live="polite">
+          <div class="progress-copy"><strong id="progressTitle">파일 처리 중</strong><span>암호화 엔진이 작업을 수행하고 있습니다.</span></div>
+          <div class="progress-track"><div class="progress-bar"></div></div>
+          <div class="progress-dots"><i></i><i></i><i></i></div>
+        </div>
+
+        <div class="nav-row">
+          <button type="button" class="secondary-button" data-prev>← 이전</button>
+          <button id="runBtn" type="button" class="primary-button large button-glow"><span>파일 처리 실행</span><i aria-hidden="true">→</i></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-screen" data-step="4" aria-labelledby="step4Title" hidden>
+      <div class="screen-card result-card">
+        <div id="successBurst" class="success-burst" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="result-orbit" aria-hidden="true"><span class="result-check"></span><i></i><i></i></div>
+        <p class="eyebrow">STEP 04</p>
+        <h2 id="step4Title">작업 결과</h2>
+        <p class="description">요청한 파일 처리가 완료되면 결과가 아래에 표시됩니다.</p>
+        <div id="result" class="result-message" role="status" aria-live="polite">아직 실행하지 않았습니다.</div>
+        <div class="button-row center"><button type="button" class="primary-button button-glow" data-restart>새 작업 시작</button><button type="button" class="secondary-button" data-prev>이전</button></div>
+      </div>
+    </section>
+
+    <section class="bottom-panels">
+      <details class="console-panel">
+        <summary><span><i class="terminal-icon"></i>시리얼 콘솔</span><small>Arduino · 9600 baud</small></summary>
+        <div id="serialLog">로그 없음</div>
+      </details>
+      <details class="contact-panel">
+        <summary><span><i class="contact-icon"></i>프로젝트 문의</span><small>AKFES links</small></summary>
+        <div class="contact-links"><a href="#" data-contact="telegram">Telegram</a><a href="#" data-contact="github">GitHub</a><a href="#" data-contact="instagram">Instagram</a></div>
+      </details>
+    </section>
+  </main>
+
+  <footer class="app-footer"><span>AKFES v2</span><span>Local secure workspace</span><span>PBKDF2 · AES-256-GCM</span></footer>
+</div>
 </body>
 </html>
