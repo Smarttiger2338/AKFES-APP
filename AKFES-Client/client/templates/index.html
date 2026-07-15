@@ -12,8 +12,11 @@
 <body>
 <div class="wizard-shell">
   <header class="app-header">
-    <div class="brand"><div class="brand-mark">A</div><div><strong>AKFES</strong><span>Arduino Keypad File Encryption System</span></div></div>
-    <div class="header-status">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">A</div>
+      <div><strong>AKFES</strong><span>Arduino Keypad File Encryption System</span></div>
+    </div>
+    <div class="header-status" aria-label="시스템 상태">
       <span id="serverBadge" class="badge warning"><span class="badge-dot"></span>Server · 확인 전</span>
       <span id="arduinoBadge" class="badge danger"><span class="badge-dot"></span>Arduino · 연결 안 됨</span>
       <span id="sessionBadge" class="badge danger"><span class="badge-dot"></span>Session · 미인증</span>
@@ -28,15 +31,17 @@
       <li data-step-indicator="4"><span>4</span><b>결과</b></li>
     </ol>
 
-    <section class="step-screen active" data-step="1">
+    <div id="wizardNotice" class="wizard-notice" role="status" aria-live="polite" hidden></div>
+
+    <section class="step-screen active" data-step="1" aria-labelledby="step1Title">
       <div class="screen-card narrow">
-        <div class="screen-icon">🔐</div>
+        <div class="screen-icon icon-lock" aria-hidden="true"></div>
         <p class="eyebrow">STEP 01</p>
-        <h1>라이선스 인증</h1>
+        <h1 id="step1Title">라이선스 인증</h1>
         <p class="description">발급받은 라이선스 키를 입력해 AKFES 세션을 시작합니다.</p>
         <label class="field-label" for="licenseKey">라이선스 키</label>
-        <input id="licenseKey" type="password" placeholder="HCK1.으로 시작하는 KEY 입력" autocomplete="off">
-        <div id="loginStatus" class="message">로그인 필요</div>
+        <input id="licenseKey" type="password" placeholder="HCK1.으로 시작하는 KEY 입력" autocomplete="off" spellcheck="false">
+        <div id="loginStatus" class="message" role="status" aria-live="polite">로그인 필요</div>
         <div class="button-row center">
           <button id="loginBtn" type="button" class="primary-button">인증하고 다음</button>
           <button id="logoutBtn" type="button" class="secondary-button">로그아웃</button>
@@ -44,31 +49,34 @@
       </div>
     </section>
 
-    <section class="step-screen" data-step="2">
+    <section class="step-screen" data-step="2" aria-labelledby="step2Title" hidden>
       <div class="screen-card narrow">
-        <div class="screen-icon">🔌</div>
+        <div class="screen-icon icon-device" aria-hidden="true"></div>
         <p class="eyebrow">STEP 02</p>
-        <h1>Arduino 연결</h1>
+        <h1 id="step2Title">Arduino 연결</h1>
         <p class="description">USB로 연결된 Arduino Uno의 시리얼 포트를 선택합니다.</p>
-        <div id="connectionStatus" class="message">아두이노 연결 대기</div>
+        <div id="connectionStatus" class="message" role="status" aria-live="polite">아두이노 연결 대기</div>
         <div class="button-row center">
           <button id="connectBtn" type="button" class="primary-button">포트 선택 및 연결</button>
           <button id="disconnectBtn" type="button" class="secondary-button">연결 해제</button>
         </div>
         <button id="serverBtn" type="button" class="text-button">서버 상태 다시 확인</button>
-        <div class="nav-row"><button type="button" class="secondary-button" data-prev>이전</button><button type="button" class="primary-button" data-next>다음</button></div>
+        <div class="nav-row">
+          <button type="button" class="secondary-button" data-prev>이전</button>
+          <button id="deviceNextBtn" type="button" class="primary-button" data-next disabled>다음</button>
+        </div>
       </div>
     </section>
 
-    <section class="step-screen" data-step="3">
+    <section class="step-screen" data-step="3" aria-labelledby="step3Title" hidden>
       <div class="screen-card wide">
         <p class="eyebrow">STEP 03</p>
-        <h1>파일 암호화 및 복호화</h1>
+        <h1 id="step3Title">파일 암호화 및 복호화</h1>
         <p class="description">파일과 작업 모드를 선택한 뒤 키패드로 비밀번호를 입력하세요.</p>
 
-        <div id="dropZone" class="drop-zone" role="button" tabindex="0">
+        <div id="dropZone" class="drop-zone" role="button" tabindex="0" aria-label="파일 선택 영역">
           <input type="file" id="file">
-          <div class="drop-icon">⇩</div>
+          <div class="drop-icon" aria-hidden="true">⇩</div>
           <strong>파일을 끌어놓거나 클릭하여 선택</strong>
           <span id="fileName">선택된 파일 없음</span>
         </div>
@@ -83,7 +91,7 @@
           </div>
           <div>
             <div class="password-heading"><span class="field-label">키패드 비밀번호</span><small># 실행 · * 삭제</small></div>
-            <div id="pw" class="password-display">키패드 입력 대기 중</div>
+            <div id="pw" class="password-display" aria-live="polite">키패드 입력 대기 중</div>
             <button id="clearBtn" type="button" class="text-button">입력 초기화</button>
           </div>
         </div>
@@ -94,17 +102,17 @@
           <div class="button-row"><button id="calibrateBtn" type="button" class="secondary-button">매핑 시작</button><button id="resetMapBtn" type="button" class="secondary-button">매핑 초기화</button></div>
         </details>
 
-        <div id="progressWrap" class="progress-wrap" hidden><div class="progress-bar"></div><span>파일 처리 중...</span></div>
+        <div id="progressWrap" class="progress-wrap" hidden aria-live="polite"><div class="progress-bar"></div><span>파일 처리 중...</span></div>
         <div class="nav-row"><button type="button" class="secondary-button" data-prev>이전</button><button id="runBtn" type="button" class="primary-button large">파일 처리 실행</button></div>
       </div>
     </section>
 
-    <section class="step-screen" data-step="4">
+    <section class="step-screen" data-step="4" aria-labelledby="step4Title" hidden>
       <div class="screen-card narrow result-card">
-        <div class="screen-icon">✓</div>
+        <div class="screen-icon icon-result" aria-hidden="true"></div>
         <p class="eyebrow">STEP 04</p>
-        <h1>작업 결과</h1>
-        <div id="result" class="result-message">아직 실행하지 않았습니다.</div>
+        <h1 id="step4Title">작업 결과</h1>
+        <div id="result" class="result-message" role="status" aria-live="polite">아직 실행하지 않았습니다.</div>
         <div class="button-row center"><button type="button" class="primary-button" data-restart>새 작업 시작</button><button type="button" class="secondary-button" data-prev>이전</button></div>
       </div>
     </section>
