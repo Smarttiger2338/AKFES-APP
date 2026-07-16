@@ -1,7 +1,7 @@
 ﻿﻿@echo off
 setlocal
 chcp 65001 >nul
-title AKFES Server
+title AKFES Hardened Server
 
 cd /d "%~dp0"
 
@@ -37,7 +37,7 @@ if "%SESSION_SECRET%"=="" (
 )
 
 echo ==========================================
-echo  AKFES - SERVER
+echo  AKFES - HARDENED SERVER
 echo ==========================================
 echo.
 echo [INFO] Python command: %PY%
@@ -53,8 +53,9 @@ if errorlevel 1 (
 )
 
 echo.
-echo [INFO] Starting AKFES Server...
-%PY% "%~dp0server/server.py"
+echo [INFO] Device-bound sessions and one-time signed requests are required.
+echo [INFO] Starting AKFES Hardened Server...
+%PY% "%~dp0server/hardened_server.py"
 
 echo.
 echo [INFO] Server stopped.
