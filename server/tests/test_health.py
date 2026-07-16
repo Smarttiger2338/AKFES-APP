@@ -4,7 +4,7 @@ from app.config import Settings
 from app.main import create_app
 
 
-def test_settings() -> Settings:
+def make_test_settings() -> Settings:
     return Settings(
         app_name="AKFES API",
         version="2.0.0-test",
@@ -19,7 +19,7 @@ def test_settings() -> Settings:
 
 
 def test_health_endpoints_are_available() -> None:
-    client = TestClient(create_app(test_settings()))
+    client = TestClient(create_app(make_test_settings()))
 
     for path in ("/health", "/api/v2/health"):
         response = client.get(path)
@@ -38,7 +38,7 @@ def test_health_endpoints_are_available() -> None:
 
 
 def test_docs_are_disabled_when_configured() -> None:
-    client = TestClient(create_app(test_settings()))
+    client = TestClient(create_app(make_test_settings()))
 
     assert client.get("/docs").status_code == 404
     assert client.get("/openapi.json").status_code == 404
