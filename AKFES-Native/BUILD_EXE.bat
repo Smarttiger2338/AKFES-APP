@@ -1,0 +1,14 @@
+@echo off
+setlocal
+cd /d "%~dp0"
+if not exist ".venv\Scripts\python.exe" (
+  py -3 -m venv .venv || exit /b 1
+)
+call .venv\Scripts\activate.bat
+python -m pip install --upgrade pip
+pip install -r requirements.txt pyinstaller || exit /b 1
+pyinstaller --noconfirm --clean --windowed --name AKFES main.py
+echo.
+echo Build complete: dist\AKFES\AKFES.exe
+pause
+endlocal

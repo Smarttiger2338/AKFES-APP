@@ -1,7 +1,7 @@
 ﻿﻿@echo off
 setlocal
 chcp 65001 >nul
-title AKFES Server
+title AKFES Protected Server
 
 cd /d "%~dp0"
 
@@ -22,27 +22,23 @@ if %errorlevel%==0 (
 
 if "%LICENSE_SECRET%"=="" (
     echo [ERROR] LICENSE_SECRET is not set.
-    echo Example:
-    echo set LICENSE_SECRET=your_long_random_secret
     pause
     exit /b 1
 )
 
 if "%SESSION_SECRET%"=="" (
     echo [ERROR] SESSION_SECRET is not set.
-    echo Example:
-    echo set SESSION_SECRET=your_long_random_secret_2
     pause
     exit /b 1
 )
 
-echo ==========================================
-echo  AKFES - SERVER
-echo ==========================================
-echo.
-echo [INFO] Python command: %PY%
-%PY% --version
+if "%SERVER_HOST%"=="" set "SERVER_HOST=127.0.0.1"
+if "%SERVER_PORT%"=="" set "SERVER_PORT=5000"
+if "%SERVER_THREADS%"=="" set "SERVER_THREADS=4"
 
+echo ==========================================
+echo  AKFES - PROTECTED SERVER
+echo ==========================================
 echo.
 echo [INFO] Installing/checking server requirements...
 %PY% -m pip install -r "%~dp0server/requirements.txt"
@@ -53,8 +49,12 @@ if errorlevel 1 (
 )
 
 echo.
-echo [INFO] Starting AKFES Server...
-%PY% "%~dp0server/server.py"
+echo [INFO] Closed API surface enabled.
+echo [INFO] Device-bound signed requests enabled.
+echo [INFO] Production WSGI server enabled.
+echo [INFO] Listening on %SERVER_HOST%:%SERVER_PORT%
+echo.
+%PY% "%~dp0server/production_server.py"
 
 echo.
 echo [INFO] Server stopped.
