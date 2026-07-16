@@ -1,646 +1,113 @@
-# AKFES
+# AKFES v2
 
-![Version](https://img.shields.io/badge/version-v1.0.0-blue)
-![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
-![Built with](https://img.shields.io/badge/built%20with-Electron-47848F)
-![Backend](https://img.shields.io/badge/backend-Flask-black)
-![Hardware](https://img.shields.io/badge/hardware-Arduino-00979D)
-![Crypto](https://img.shields.io/badge/crypto-AES--256--GCM-green)
+Arduino 키패드를 이용해 파일 암호화·복호화 비밀번호를 입력하는 데스크톱 보안 애플리케이션입니다.
 
-**Arduino Keypad-Based File Encryption System**
+이 브랜치에서는 기존 Electron과 PySide6 클라이언트를 사용하지 않습니다. 데스크톱 클라이언트는 Tauri v2, Rust, React, TypeScript로 다시 구성하고 있습니다.
 
-*A tiny file security project with an Arduino keypad, an Electron app, AES-GCM encryption, license keys, and just enough paranoia to make it interesting.*
-
----
-
-## What is AKFES?
-
-**AKFES** is a file encryption and decryption system that uses an **Arduino keypad** as a physical password input device.
-
-Instead of typing your password on a regular keyboard like a normal person, AKFES lets you enter it through a hardware keypad connected to an Arduino. The Electron client sends the file and password to the server, and the server handles license verification, encryption, and decryption.
-
-Because apparently clicking “Encrypt” was not dramatic enough.
-
----
-
-## Screenshots
-
-### Desktop Client
-
-<img src="assets/screenshots/dashboard.png" alt="AKFES desktop client dashboard" width="800">
-
-AKFES runs as an Electron desktop client with a dark security-dashboard style interface.
-
-### License Login
-
-<img src="assets/screenshots/license-login.png" alt="AKFES license login screen" width="800">
-
-Users must log in with a time-limited license key before using file encryption or decryption.
-
-### Arduino Keypad Device
-
-<img src="assets/screenshots/arduino-keypad.jpg" alt="Arduino keypad and LED hardware setup" width="700">
-
-The Arduino keypad is used as a physical password input device.
-A green LED indicates success, while a red LED indicates failure.
-
-### Encryption Result
-
-<img src="assets/screenshots/encryption-result.png" alt="AKFES encryption result screen" width="800">
-
-After processing, AKFES automatically downloads the encrypted or decrypted file.
-
----
-
-## System Architecture
-
-<img src="assets/diagrams/architecture.png" alt="AKFES system architecture diagram" width="850">
-
-AKFES separates the client and server.
-
-The **Electron client** handles the user interface, Arduino connection, file selection, and password input.
-The **Flask server** handles license verification, session validation, file encryption, file decryption, and forensic-style logging.
-
----
-
-## Hardware Wiring
-
-<img src="assets/diagrams/wiring-diagram.png" alt="AKFES Arduino wiring diagram" width="850">
-
-Default wiring:
+## 현재 구성
 
 ```text
-Keypad 8 wires → Arduino D2 ~ D9
-Green LED      → D10
-Red LED        → D11
-GND            → Breadboard GND rail
+AKFES-APP/
+├─ apps/
+│  └─ desktop/
+│     ├─ src/                 React + TypeScript UI
+│     └─ src-tauri/           Tauri v2 + Rust
+├─ firmware/
+│  └─ arduino/
+│     └─ project.ino
+├─ AKFES-Server/              기존 서버, FastAPI 이전 예정
+├─ V2_MIGRATION.md
+└─ package.json
 ```
 
-LED wiring:
+## 데스크톱 클라이언트
 
-```text
-D10 → resistor → green LED long leg (+)
-green LED short leg (-) → GND
+현재 구현된 기능:
 
-D11 → resistor → red LED long leg (+)
-red LED short leg (-) → GND
-```
+- Tauri v2 데스크톱 프로젝트 구조
+- React·TypeScript 기반 단계별 화면
+- 대표 블루 색상의 웹앱형 디자인
+- 기본 운영체제 제목 표시줄을 대신하는 AKFES 전용 상단 바
+- 최소화, 최대화·복원, 종료 버튼
+- 화면 스크롤바 숨김
+- 라이선스 → 장치 연결 → 파일 작업 → 결과 흐름
+- Rust 명령을 통한 시리얼 포트 검색
+- Arduino 펌웨어의 `firmware/arduino` 경로 이전
 
-Use a **220Ω ~ 330Ω resistor**.
+라이선스 인증과 실제 파일 처리는 아직 v2 서버와 연결하지 않았습니다. 화면에서 인증 성공이나 파일 처리 성공을 임의로 표시하지 않도록 초기화 상태로 두었습니다.
 
-Do not connect LEDs directly unless you want to convert electronics into tiny sadness.
+## 실행 준비
 
----
+필요한 개발 도구:
 
-## Features
+- Node.js 및 npm
+- Rust 및 Cargo
+- Tauri v2를 빌드할 수 있는 Windows 개발 환경
 
-* Arduino keypad-based password input
-* Electron desktop client
-* Separated client and server architecture
-* License key login system
-* Time-limited license keys
-* Session-token-based requests
-* AES-256-GCM file encryption
-* PBKDF2-HMAC-SHA256 key derivation
-* HMAC-SHA256 license key signing
-* HMAC-SHA256 session token signing
-* Works with all file extensions
-* Keeps Korean filenames intact
-* Adds `[암호화됨]` and `[복호화됨]` to filenames
-* Green LED on success
-* Red LED on failure
-* Server-side rate limiting
-* Revoked license key list
-* Basic forensic logging
-* Contact links for Telegram, GitHub, and Instagram
-* JavaScript obfuscation support
-
----
-
-## Release
-
-The latest packaged version of AKFES can be downloaded from the **Releases** page.
-
-### Latest Version
-
-**v1.0.0 — AKFES Clean Release**
-
-This release includes:
-
-* Electron desktop client
-* Separated server and client structure
-* Arduino keypad password input
-* License key authentication
-* Time-limited license keys
-* AES-GCM file encryption and decryption
-* PBKDF2 key derivation
-* Green / red LED result indicators
-* Server-side rate limiting
-* Revoked license key support
-* Basic forensic logging
-* Contact link configuration
-* Cleaned project structure with unused files removed
-
-### Download
-
-Go to the GitHub **Releases** page and download the latest ZIP file:
-
-```text
-akfes_clean_no_comments.zip
-```
-
-After downloading, extract the ZIP file before running the project.
-
-### Version History
-
-| Version | Description                                                                                                                                 |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| v1.0.0  | First clean release with Electron client, separated server, license keys, Arduino keypad input, AES-GCM encryption, and cleaned source code |
-
----
-
-## Project Structure
-
-```text
-AKFES
-├─ assets
-│  ├─ screenshots
-│  │  ├─ dashboard.png
-│  │  ├─ license-login.png
-│  │  ├─ arduino-keypad.jpg
-│  │  └─ encryption-result.png
-│  └─ diagrams
-│     ├─ architecture.png
-│     └─ wiring-diagram.png
-│
-├─ AKFES-Server
-│  ├─ server
-│  │  ├─ server.py
-│  │  └─ requirements.txt
-│  ├─ tools
-│  │  └─ generate_license_key.py
-│  ├─ START_SERVER.bat
-│  ├─ GENERATE_KEY.bat
-│  ├─ GENERATE_KEY_QUICK.bat
-│  └─ revoked_keys.json
-│
-├─ AKFES-Client
-│  ├─ electron
-│  │  ├─ main.js
-│  │  ├─ preload.js
-│  │  ├─ use-obfuscated.js
-│  │  └─ use-original.js
-│  ├─ client
-│  │  ├─ templates
-│  │  │  └─ index.html
-│  │  └─ static
-│  │     ├─ app.js
-│  │     ├─ contact_config.js
-│  │     ├─ style.css
-│  │     └─ images
-│  ├─ arduino
-│  │  └─ project.ino
-│  └─ START_ELECTRON_DEV.bat
-│
-├─ START_AKFES_ALL.bat
-├─ START_AKFES_DEMO.bat
-├─ GENERATE_DEMO_KEY.bat
-└─ README.md
-```
-
----
-
-## How It Works
-
-```text
-1. Admin generates a time-limited license key.
-2. User opens the Electron client.
-3. User logs in with the license key.
-4. Server verifies the license key signature and expiration time.
-5. Server issues a session token.
-6. User selects a file.
-7. User enters a password using the Arduino keypad.
-8. Client sends the file, password, and session token to the server.
-9. Server encrypts or decrypts the file.
-10. User downloads the result.
-11. Green LED means success.
-12. Red LED means something went wrong. Probably your fault. Probably.
-```
-
----
-
-## Tech Stack
-
-### Client
-
-* HTML
-* CSS
-* JavaScript
-* Electron
-* Web Serial API
-
-### Server
-
-* Python
-* Flask
-* Flask-CORS
-* Flask-Limiter
-* cryptography
-
-### Hardware
-
-* Arduino Uno
-* 4x4 keypad
-* Green LED
-* Red LED
-* MB102 breadboard
-* Wires, patience, and at least one moment of regret
-
----
-
-## Cryptography Design
-
-AKFES uses three main cryptographic mechanisms:
-
-```text
-File encryption:        AES-256-GCM
-Password key derivation: PBKDF2-HMAC-SHA256
-License/session signing: HMAC-SHA256
-```
-
-### 1. File Encryption: AES-256-GCM
-
-AKFES uses **AES-GCM** for file encryption and decryption.
-
-AES is a symmetric encryption algorithm, which means the same key is used for encryption and decryption.
-GCM mode provides both:
-
-* **Confidentiality** — hides the file contents
-* **Integrity** — detects whether the encrypted file has been modified or corrupted
-
-So if someone changes even a tiny part of the encrypted file, decryption will fail.
-
-That is not a bug.
-That is the algorithm doing its job.
-
-### 2. Password-Based Key Derivation: PBKDF2-HMAC-SHA256
-
-The password entered through the Arduino keypad is **not used directly** as the AES key.
-
-Instead, AKFES uses **PBKDF2-HMAC-SHA256** to derive a 32-byte encryption key.
-
-```text
-User password
-↓
-Random salt
-↓
-PBKDF2-HMAC-SHA256, 200,000 iterations
-↓
-32-byte AES key
-↓
-AES-256-GCM encryption
-```
-
-Current settings:
-
-```text
-Salt size:        16 bytes
-Nonce size:       12 bytes
-AES key size:     32 bytes
-PBKDF2 rounds:    200,000 iterations
-```
-
-Since 32 bytes equals 256 bits, AKFES effectively uses **AES-256-GCM**.
-
-### 3. Encrypted File Format
-
-Encrypted files are stored in this format:
-
-```text
-salt 16 bytes + nonce 12 bytes + ciphertext
-```
-
-There is no obvious magic header like:
-
-```text
-HELLO_I_AM_ENCRYPTED_WITH_THIS_LIBRARY
-```
-
-because that would be rude to security.
-
-This does not replace real security, but it avoids casually exposing the encryption format.
-
-### 4. License Key Signing: HMAC-SHA256
-
-AKFES license keys are signed using **HMAC-SHA256**.
-
-The license key format is roughly:
-
-```text
-HCK1.payload.signature
-```
-
-The payload contains information such as:
-
-```text
-license ID
-name
-issued time
-expiration time
-scope
-```
-
-The server verifies the signature using `LICENSE_SECRET`.
-
-If someone modifies the expiration time or payload, the signature no longer matches, and the server rejects the key.
-
-Nice try, imaginary attacker.
-
-### 5. Session Token Signing: HMAC-SHA256
-
-After a valid license key is accepted, the server issues a session token.
-
-The session token format is roughly:
-
-```text
-HCS1.payload.signature
-```
-
-The server checks:
-
-```text
-Is the token signed correctly?
-Is it expired?
-Is it intended for AKFES?
-Does it have the file_crypto scope?
-Is the license revoked?
-```
-
-Only valid sessions can use the file processing API.
-
----
-
-## Filename Rules
-
-Example:
-
-```text
-photo.png → photo[암호화됨].png
-photo[암호화됨].png → photo[복호화됨].png
-```
-
-Yes, it supports Korean filenames.
-Yes, that was intentional.
-Yes, encoding bugs were harmed during development.
-
----
-
-## Running the Server
-
-Set environment variables first:
-
-```bat
-set LICENSE_SECRET=your_long_random_license_secret
-set SESSION_SECRET=your_long_random_session_secret
-```
-
-Then start the server:
-
-```bat
-cd AKFES-Server
-START_SERVER.bat
-```
-
-By default, the server runs at:
-
-```text
-http://127.0.0.1:5000
-```
-
-For real deployment, please use HTTPS.
-
-Sending keys, tokens, files, and passwords over plain HTTP is how horror stories begin.
-
----
-
-## Running the Client
-
-```bat
-cd AKFES-Client
-set AKFES_SERVER_URL=http://127.0.0.1:5000
-START_ELECTRON_DEV.bat
-```
-
-The Electron app will open, and you can log in with a license key, connect your Arduino, choose a file, and encrypt or decrypt it.
-
----
-
-## One-Click Development Launch
-
-For local development or demonstration:
-
-```text
-START_AKFES_ALL.bat
-```
-
-This starts both the server and the Electron client.
-
----
-
-## Demo Mode
-
-For quick testing:
-
-```text
-START_AKFES_DEMO.bat
-```
-
-Demo mode uses fixed demo secrets.
-
-Do not use demo secrets in production unless you enjoy being the main character in your own incident report.
-
----
-
-## Generating a Demo License Key
-
-```text
-GENERATE_DEMO_KEY.bat
-```
-
-Or manually:
-
-```bat
-cd AKFES-Server
-set LICENSE_SECRET=your_long_random_license_secret
-GENERATE_KEY_QUICK.bat 1d demo
-```
-
-Lifetime examples:
-
-```text
-3h = 3 hours
-1d = 1 day
-2w = 2 weeks
-3m = 3 months
-1y = 1 year
-```
-
----
-
-## Contact Links
-
-Edit this file:
-
-```text
-AKFES-Client/client/static/contact_config.js
-```
-
-Example:
-
-```javascript
-window.AKFES_CONTACTS = {
-    telegram: "https://t.me/your_telegram_id",
-    github: "https://github.com/Smarttiger2338",
-    instagram: "https://instagram.com/your_instagram_id"
-};
-```
-
----
-
-## JavaScript Obfuscation
-
-To obfuscate the client JavaScript:
+저장소 루트에서 실행합니다.
 
 ```bash
-cd AKFES-Client
 npm install
-npm run obfuscate
-npm run use-obfuscated
+npm run desktop:dev
 ```
 
-To switch back to the original file:
+프런트엔드 화면만 확인할 때는 다음 명령을 사용합니다.
 
 ```bash
-npm run use-original
+npm run desktop:web
 ```
 
-Obfuscation makes analysis harder, not impossible.
-Think of it as locking your diary, not building Fort Knox.
+배포 빌드는 다음 명령으로 준비되어 있습니다.
 
----
+```bash
+npm run desktop:build
+```
 
-## Forensic Logging
+현재 `tauri.conf.json`의 번들 생성은 비활성화되어 있습니다. 앱 아이콘, 설치 프로그램, 코드 서명 구성을 완료한 뒤 활성화할 예정입니다.
 
-The server can log events such as:
+## Rust 시리얼 통신
 
-* Successful login
-* Failed login
-* Revoked key usage
-* Successful file processing
-* Failed file processing
-* Request IP address
-* Error timestamps
+현재 Rust 명령 `list_serial_ports`가 운영체제의 시리얼 포트를 조회하여 React 화면에 전달합니다.
 
-These logs can be useful for basic forensic analysis.
+다음 단계에서 추가할 항목:
 
-Do not log:
+- Arduino 포트 연결 및 연결 해제
+- 9600 baud 데이터 수신
+- `READY`, `PAIR`, `LED:GREEN`, `LED:RED` 프로토콜 처리
+- 키패드 입력 매핑과 비밀번호 상태 관리
+
+## 서버 이전 상태
+
+현재 저장소에는 기존 Python 서버가 남아 있습니다. 다음 단계에서 FastAPI 기반 서버 구조로 이전하며 다음 보안 원칙을 유지합니다.
+
+- 클라이언트를 신뢰하지 않는 서버 중심 권한 검증
+- 라이선스 및 세션 검증
+- 장치 바인딩
+- 일회용 챌린지와 요청 서명
+- AES-256-GCM 파일 처리
+- 허용된 API 경로만 공개
+
+운영 서버의 비밀키와 설정은 클라이언트에 포함하지 않습니다.
+
+## Arduino
+
+펌웨어 위치:
 
 ```text
-passwords
-full session tokens
-full license keys
-file contents
+firmware/arduino/project.ino
 ```
 
-Future-you will thank present-you.
-
----
-
-## Security Notes
-
-AKFES includes:
-
-* Client/server separation
-* License key verification
-* Session token validation
-* License expiration checks
-* Revoked license key support
-* Rate limiting
-* AES-GCM authenticated encryption
-* PBKDF2-HMAC-SHA256 key derivation
-* HMAC-SHA256 signing
-* Simplified server error messages
-* Login and file-processing logs
-* JavaScript obfuscation support
-
-However:
-
-* Obfuscation is not real security.
-* Client-side code can always be inspected eventually.
-* Server secrets must never be shipped to users.
-* Production deployments should use HTTPS.
-* Do not log passwords, full tokens, full license keys, or file contents.
-
-Security is not a button.
-Unfortunately.
-
----
-
-## Deployment Warning
-
-Do not upload real secrets to GitHub.
-
-Never commit:
+기본 핀 구성:
 
 ```text
-LICENSE_SECRET
-SESSION_SECRET
-real license keys
-user data
-private server configuration
+키패드 8선: D2~D9
+초록색 LED: D10
+빨간색 LED: D11
+통신 속도: 9600 baud
 ```
 
-For real deployment, users should receive only the client application.
-The server, license key generator, and signing secrets should remain under the operator’s control.
+## 마이그레이션 진행 상황
 
----
+자세한 작업 상태는 [`V2_MIGRATION.md`](V2_MIGRATION.md)에서 확인할 수 있습니다.
 
-## Why This Project Exists
-
-AKFES started as a file encryption project and slowly evolved into a small security system involving:
-
-* IoT-style hardware input
-* Server-side authentication
-* License-based access control
-* Electron desktop UI
-* Forensic logging
-* LEDs that judge your success or failure
-
-It is a learning project for exploring file security, hardware interaction, and practical security architecture.
-
----
-
-## Disclaimer
-
-This project is built for learning, experimentation, and portfolio purposes.
-
-Before using anything like this in production, you should add:
-
-* HTTPS
-* proper server deployment
-* stronger key management
-* secure logging
-* user privacy controls
-* backup and recovery planning
-* threat modeling
-* probably coffee
-
----
-
-## License
-
-This project is for educational and research purposes.
-
-Use responsibly.
-Encrypt wisely.
-Do not anger the Arduino.
+> 현재 브랜치는 리팩터링 중인 개발 브랜치입니다. 실제 Arduino, Rust 의존성, Tauri 창, 서버 통신을 함께 실행한 통합 테스트는 아직 완료되지 않았습니다.
