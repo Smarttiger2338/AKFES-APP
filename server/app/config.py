@@ -73,6 +73,7 @@ class Settings:
     license_hmac_secret: str
     admin_token: str
     session_ttl_seconds: int
+    challenge_ttl_seconds: int
 
 
 @lru_cache(maxsize=1)
@@ -123,5 +124,11 @@ def get_settings() -> Settings:
             900,
             minimum=60,
             maximum=86_400,
+        ),
+        challenge_ttl_seconds=_integer(
+            "AKFES_CHALLENGE_TTL_SECONDS",
+            60,
+            minimum=10,
+            maximum=300,
         ),
     )
