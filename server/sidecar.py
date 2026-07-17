@@ -21,7 +21,10 @@ def load_or_create_runtime_config(directory: Path) -> dict[str, str]:
     if config_path.exists():
         try:
             payload = json.loads(config_path.read_text(encoding="utf-8"))
-            if all(isinstance(payload.get(key), str) and len(payload[key]) >= 32 for key in ("license_secret", "admin_token")):
+            if all(
+                isinstance(payload.get(key), str) and len(payload[key]) >= 32
+                for key in ("license_secret", "admin_token")
+            ):
                 return payload
         except (OSError, ValueError, TypeError):
             pass
@@ -55,8 +58,10 @@ def configure_environment() -> None:
 
 def main() -> None:
     configure_environment()
+    from app.main import app
+
     uvicorn.run(
-        "app.main:app",
+        app,
         host="127.0.0.1",
         port=8000,
         log_level="warning",
