@@ -31,6 +31,7 @@ def make_test_settings(tmp_path: Path) -> Settings:
         admin_token=ADMIN_TOKEN,
         session_ttl_seconds=900,
         challenge_ttl_seconds=60,
+        device_binding_required=True,
     )
 
 
@@ -79,6 +80,12 @@ def test_license_issue_login_and_session_status(tmp_path: Path) -> None:
     )
     assert invalid_login.status_code == 401
 
+    missing_device = client.post(
+        "/api/v2/auth/login",
+        json={"license_key": license_key},
+    )
+    assert missing_device.status_code == 403
+
     login_body = login_session(client, license_key.lower(), device_id="device-01")
     assert login_body["session_token"]
     assert login_body["device_id"] == "device-01"
@@ -94,6 +101,12 @@ def test_license_issue_login_and_session_status(tmp_path: Path) -> None:
     assert session.status_code == 200
     assert session.json()["valid"] is True
 
+    missing_session_device = client.get(
+        "/api/v2/auth/session",
+        headers={"Authorization": f"Bearer {login_body['session_token']}"},
+    )
+    assert missing_session_device.status_code == 401
+
     wrong_device = client.get(
         "/api/v2/auth/session",
         headers={
@@ -104,9 +117,69 @@ def test_license_issue_login_and_session_status(tmp_path: Path) -> None:
     assert wrong_device.status_code == 401
 
     with sqlite3.connect(settings.database_path) as connection:
-        stored_digest = connection.execute("SELECT key_digest FROM licenses").fetchone()[0]
-    assert stored_digest != license_key
-    assert license_key not in stored_digest
+        stored_key_digest, stored_device_digest = connection.execute(
+            "SELECT key_digest, bound_device_digest FROM licenses"
+        ).fetchone()
+    assert stored_key_digest != license_key
+    assert license_key not in stored_key_digest
+    assert stored_device_digest != "device-01"
+    assert "device-01" not in stored_device_digest
+
+
+def test_device_binding_reset_and_rebind(tmp_path: Path) -> None:
+    client = TestClient(create_app(make_test_settings(tmp_path)))
+    issued = issue_license(client, label="device-binding-test")
+    license_id = int(issued["license_id"])
+    license_key = str(issued["license_key"])
+
+    first_login = login_session(client, license_key, device_id="device-first")
+    first_token = str(first_login["session_token"])
+
+    other_device_login = client.post(
+        "/api/v2/auth/login",
+        json={"license_key": license_key, "device_id": "device-second"},
+    )
+    assert other_device_login.status_code == 403
+    assert "another device" in other_device_login.json()["detail"]
+
+    listed = client.get("/api/v2/admin/licenses", headers=ADMIN_HEADERS)
+    summary = next(item for item in listed.json() if item["license_id"] == license_id)
+    assert summary["device_bound"] is True
+
+    reset = client.post(
+        f"/api/v2/admin/licenses/{license_id}/device-binding/reset",
+        headers=ADMIN_HEADERS,
+        json={"reason": "device replacement"},
+    )
+    assert reset.status_code == 200
+    assert reset.json()["license_id"] == license_id
+
+    old_session = client.get(
+        "/api/v2/auth/session",
+        headers={
+            "Authorization": f"Bearer {first_token}",
+            "X-AKFES-Device-ID": "device-first",
+        },
+    )
+    assert old_session.status_code == 401
+
+    second_login = login_session(client, license_key, device_id="device-second")
+    assert second_login["device_id"] == "device-second"
+
+    listed_after = client.get("/api/v2/admin/licenses", headers=ADMIN_HEADERS)
+    rebound = next(item for item in listed_after.json() if item["license_id"] == license_id)
+    assert rebound["device_bound"] is True
+    assert rebound["active_session_count"] == 1
+
+    audit = client.get("/api/v2/admin/audit", headers=ADMIN_HEADERS).json()
+    actions = [entry["action"] for entry in audit]
+    assert "license.device_binding.create" in actions
+    assert "license.device_binding.reset" in actions
+    reset_event = next(
+        entry for entry in audit if entry["action"] == "license.device_binding.reset"
+    )
+    assert reset_event["actor"] == "test-operator"
+    assert reset_event["details"]["reason"] == "device replacement"
 
 
 def test_license_list_revoke_and_audit(tmp_path: Path) -> None:
@@ -125,6 +198,7 @@ def test_license_list_revoke_and_audit(tmp_path: Path) -> None:
     )
     assert license_summary["label"] == "revocation-test"
     assert license_summary["status"] == "active"
+    assert license_summary["device_bound"] is True
     assert license_summary["active_session_count"] == 1
     assert "license_key" not in license_summary
 
@@ -147,7 +221,7 @@ def test_license_list_revoke_and_audit(tmp_path: Path) -> None:
 
     login_after_revoke = client.post(
         "/api/v2/auth/login",
-        json={"license_key": license_key},
+        json={"license_key": license_key, "device_id": "device-01"},
     )
     assert login_after_revoke.status_code == 403
 
@@ -169,7 +243,8 @@ def test_license_list_revoke_and_audit(tmp_path: Path) -> None:
     audit = client.get("/api/v2/admin/audit", headers=ADMIN_HEADERS)
     assert audit.status_code == 200
     actions = [entry["action"] for entry in audit.json()]
-    assert actions[:2] == ["license.revoke", "license.issue"]
+    assert actions[0] == "license.revoke"
+    assert "license.issue" in actions
     revoke_event = audit.json()[0]
     assert revoke_event["actor"] == "test-operator"
     assert revoke_event["target_id"] == str(license_id)
@@ -309,6 +384,10 @@ def test_admin_endpoints_require_token(tmp_path: Path) -> None:
         "/api/v2/admin/licenses/1/revoke",
         json={"reason": "unauthorized"},
     ).status_code == 401
+    assert client.post(
+        "/api/v2/admin/licenses/1/device-binding/reset",
+        json={"reason": "unauthorized"},
+    ).status_code == 401
 
 
 def test_rejects_malformed_license_key(tmp_path: Path) -> None:
@@ -316,7 +395,7 @@ def test_rejects_malformed_license_key(tmp_path: Path) -> None:
 
     response = client.post(
         "/api/v2/auth/login",
-        json={"license_key": "not-a-license"},
+        json={"license_key": "not-a-license", "device_id": "device-01"},
     )
 
     assert response.status_code == 401
