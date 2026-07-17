@@ -21,6 +21,7 @@ def make_test_settings(tmp_path: Path) -> Settings:
         license_hmac_secret="test-license-secret-that-is-long-enough",
         admin_token="test-admin-token-that-is-long-enough",
         session_ttl_seconds=900,
+        challenge_ttl_seconds=60,
     )
 
 
