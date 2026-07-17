@@ -3,13 +3,14 @@ from __future__ import annotations
 import hmac
 from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException, Request, status
+from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from .license_service import (
     ExpiredLicenseError,
     InvalidLicenseError,
     InvalidSessionError,
+    LicenseNotFoundError,
     LicenseService,
     RevokedLicenseError,
 )
@@ -31,6 +32,43 @@ class IssueLicenseResponse(BaseModel):
     license_id: int
     created_at: int
     expires_at: int
+
+
+class LicenseSummaryResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    license_id: int
+    label: str | None
+    created_at: int
+    expires_at: int
+    revoked_at: int | None
+    status: str
+    active_session_count: int
+
+
+class RevokeLicenseRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str | None = Field(default=None, max_length=240)
+
+
+class RevokeLicenseResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    license_id: int
+    revoked_at: int
+
+
+class AuditResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    audit_id: int
+    action: str
+    actor: str
+    target_type: str
+    target_id: str | None
+    details: dict[str, object]
+    created_at: int
 
 
 class LoginRequest(BaseModel):
@@ -87,6 +125,14 @@ def bearer_token(authorization: str | None) -> str:
     return token.strip()
 
 
+def license_status(expires_at: int, revoked_at: int | None, now: int) -> str:
+    if revoked_at is not None:
+        return "revoked"
+    if expires_at <= now:
+        return "expired"
+    return "active"
+
+
 @router.post(
     "/admin/licenses",
     response_model=IssueLicenseResponse,
@@ -97,11 +143,13 @@ def issue_license(
     payload: IssueLicenseRequest,
     request: Request,
     x_akfes_admin_token: Annotated[str | None, Header()] = None,
+    x_akfes_admin_actor: Annotated[str | None, Header()] = None,
 ) -> IssueLicenseResponse:
     require_admin_token(request, x_akfes_admin_token)
     issued = get_license_service(request).issue_license(
         duration_seconds=payload.duration_seconds,
         label=payload.label,
+        actor=x_akfes_admin_actor,
     )
     return IssueLicenseResponse(
         license_key=issued.license_key,
@@ -109,6 +157,90 @@ def issue_license(
         created_at=issued.created_at,
         expires_at=issued.expires_at,
     )
+
+
+@router.get(
+    "/admin/licenses",
+    response_model=list[LicenseSummaryResponse],
+    tags=["admin"],
+)
+def list_licenses(
+    request: Request,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    x_akfes_admin_token: Annotated[str | None, Header()] = None,
+) -> list[LicenseSummaryResponse]:
+    require_admin_token(request, x_akfes_admin_token)
+    import time
+
+    now = int(time.time())
+    records = get_license_service(request).list_licenses(limit=limit, offset=offset, now=now)
+    return [
+        LicenseSummaryResponse(
+            license_id=record.license_id,
+            label=record.label,
+            created_at=record.created_at,
+            expires_at=record.expires_at,
+            revoked_at=record.revoked_at,
+            status=license_status(record.expires_at, record.revoked_at, now),
+            active_session_count=record.active_session_count,
+        )
+        for record in records
+    ]
+
+
+@router.post(
+    "/admin/licenses/{license_id}/revoke",
+    response_model=RevokeLicenseResponse,
+    tags=["admin"],
+)
+def revoke_license(
+    license_id: int,
+    payload: RevokeLicenseRequest,
+    request: Request,
+    x_akfes_admin_token: Annotated[str | None, Header()] = None,
+    x_akfes_admin_actor: Annotated[str | None, Header()] = None,
+) -> RevokeLicenseResponse:
+    require_admin_token(request, x_akfes_admin_token)
+    try:
+        revoked_at = get_license_service(request).revoke_license(
+            license_id=license_id,
+            actor=x_akfes_admin_actor,
+            reason=payload.reason,
+        )
+    except LicenseNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="License does not exist or is already revoked",
+        ) from error
+    return RevokeLicenseResponse(license_id=license_id, revoked_at=revoked_at)
+
+
+@router.get(
+    "/admin/audit",
+    response_model=list[AuditResponse],
+    tags=["admin"],
+)
+def list_audit(
+    request: Request,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    x_akfes_admin_token: Annotated[str | None, Header()] = None,
+) -> list[AuditResponse]:
+    require_admin_token(request, x_akfes_admin_token)
+    records = get_license_service(request).list_audit(limit=limit, offset=offset)
+    return [
+        AuditResponse(
+            audit_id=record.audit_id,
+            action=record.action,
+            actor=record.actor,
+            target_type=record.target_type,
+            target_id=record.target_id,
+            details=record.details,
+            created_at=record.created_at,
+        )
+        for record in records
+    ]
 
 
 @router.post("/auth/login", response_model=LoginResponse, tags=["authentication"])
