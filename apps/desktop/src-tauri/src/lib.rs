@@ -1,6 +1,7 @@
 use serde::Serialize;
 use serialport::SerialPortType;
 use std::io::{ErrorKind, Read, Write};
+use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
@@ -56,6 +57,42 @@ fn emit_line(app: &AppHandle, line: &[u8]) {
     if !text.is_empty() {
         let _ = app.emit("serial-line", text);
     }
+}
+
+fn safe_filename(filename: &str) -> String {
+    let base = Path::new(filename.trim())
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("akfes-result.bin");
+    let sanitized: String = base
+        .chars()
+        .map(|character| match character {
+            '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' => '_',
+            character if character.is_control() => '_',
+            character => character,
+        })
+        .collect();
+    let trimmed = sanitized.trim().trim_end_matches(['.', ' ']);
+    if trimmed.is_empty() {
+        "akfes-result.bin".to_string()
+    } else {
+        trimmed.chars().take(240).collect()
+    }
+}
+
+#[tauri::command]
+fn save_processed_file(filename: String, bytes: Vec<u8>) -> Result<Option<String>, String> {
+    if bytes.is_empty() {
+        return Err("저장할 파일 데이터가 없습니다.".to_string());
+    }
+    let filename = safe_filename(&filename);
+    let selected = rfd::FileDialog::new().set_file_name(&filename).save_file();
+    let Some(path) = selected else {
+        return Ok(None);
+    };
+    std::fs::write(&path, bytes)
+        .map_err(|error| format!("결과 파일을 저장하지 못했습니다: {error}"))?;
+    Ok(Some(path.to_string_lossy().into_owned()))
 }
 
 #[tauri::command]
@@ -236,6 +273,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(SerialConnection::default())
         .invoke_handler(tauri::generate_handler![
+            save_processed_file,
             list_serial_ports,
             connect_serial_port,
             disconnect_serial_port,
