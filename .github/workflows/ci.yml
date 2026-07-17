@@ -1,0 +1,104 @@
+name: AKFES v2 CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - v2-tauri-refactor
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: akfes-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: FastAPI tests and lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/pyproject.toml
+
+      - name: Install server dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+
+      - name: Run Ruff
+        run: python -m ruff check .
+
+      - name: Run pytest
+        env:
+          AKFES_ENVIRONMENT: test
+          AKFES_DATABASE_PATH: ${{ runner.temp }}/akfes-ci.sqlite3
+          AKFES_LICENSE_HMAC_SECRET: ci-only-license-secret-00000000000000000000000000000000
+          AKFES_ADMIN_TOKEN: ci-only-admin-token-000000000000000000000000000000000
+        run: python -m pytest
+
+  desktop-web:
+    name: React and TypeScript build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check and build frontend
+        run: npm --workspace apps/desktop run build
+
+  desktop-rust:
+    name: Tauri Rust check
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/desktop/src-tauri
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libudev-dev \
+            patchelf \
+            pkg-config
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Run cargo check
+        run: cargo check --locked
