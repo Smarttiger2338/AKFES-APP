@@ -48,6 +48,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "Authorization",
             "Content-Type",
             "X-AKFES-Admin-Token",
+            "X-AKFES-Admin-Actor",
             "X-AKFES-Device-ID",
             "X-AKFES-Challenge",
             "X-AKFES-Signature",
