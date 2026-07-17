@@ -67,8 +67,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "X-AKFES-Device-ID",
             "X-AKFES-Challenge",
             "X-AKFES-Signature",
+            "X-AKFES-Filename",
+            "X-AKFES-Password",
         ],
-        expose_headers=["Content-Disposition", "X-Request-ID"],
+        expose_headers=[
+            "Content-Disposition",
+            "Content-Length",
+            "X-Request-ID",
+            "X-AKFES-Filename",
+            "X-AKFES-Algorithm",
+            "X-AKFES-Key-Derivation",
+        ],
         max_age=600,
     )
 
