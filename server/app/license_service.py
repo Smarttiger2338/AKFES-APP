@@ -6,7 +6,7 @@ import secrets
 import time
 from dataclasses import dataclass
 
-from .license_store import LicenseStore, SessionRecord
+from .license_store import AuditRecord, LicenseStore, LicenseSummary, SessionRecord
 
 
 class LicenseError(Exception):
@@ -26,6 +26,10 @@ class RevokedLicenseError(LicenseError):
 
 
 class InvalidSessionError(LicenseError):
+    pass
+
+
+class LicenseNotFoundError(LicenseError):
     pass
 
 
@@ -78,6 +82,13 @@ class LicenseService:
         return normalized
 
     @staticmethod
+    def normalize_actor(value: str | None) -> str:
+        normalized = (value or "admin").strip()
+        if not normalized:
+            return "admin"
+        return normalized[:120]
+
+    @staticmethod
     def generate_license_key() -> str:
         alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         groups = [
@@ -91,6 +102,7 @@ class LicenseService:
         *,
         duration_seconds: int,
         label: str | None = None,
+        actor: str | None = None,
         now: int | None = None,
     ) -> IssuedLicense:
         if duration_seconds < 60:
@@ -98,6 +110,7 @@ class LicenseService:
         created_at = int(time.time()) if now is None else int(now)
         expires_at = created_at + int(duration_seconds)
         normalized_label = label.strip()[:120] if label and label.strip() else None
+        normalized_actor = self.normalize_actor(actor)
 
         for _ in range(5):
             license_key = self.generate_license_key()
@@ -112,6 +125,18 @@ class LicenseService:
                 if "UNIQUE constraint failed" in str(error):
                     continue
                 raise
+            self.store.record_audit(
+                action="license.issue",
+                actor=normalized_actor,
+                target_type="license",
+                target_id=str(license_id),
+                details={
+                    "label": normalized_label,
+                    "created_at": created_at,
+                    "expires_at": expires_at,
+                },
+                created_at=created_at,
+            )
             return IssuedLicense(
                 license_key=license_key,
                 license_id=license_id,
@@ -120,6 +145,43 @@ class LicenseService:
             )
 
         raise RuntimeError("Could not generate a unique license key")
+
+    def list_licenses(
+        self,
+        *,
+        limit: int,
+        offset: int,
+        now: int | None = None,
+    ) -> list[LicenseSummary]:
+        current_time = int(time.time()) if now is None else int(now)
+        return self.store.list_licenses(limit=limit, offset=offset, now=current_time)
+
+    def revoke_license(
+        self,
+        *,
+        license_id: int,
+        actor: str | None = None,
+        reason: str | None = None,
+        now: int | None = None,
+    ) -> int:
+        revoked_at = int(time.time()) if now is None else int(now)
+        normalized_actor = self.normalize_actor(actor)
+        normalized_reason = reason.strip()[:240] if reason and reason.strip() else None
+        revoked = self.store.revoke_license(license_id=license_id, revoked_at=revoked_at)
+        if not revoked:
+            raise LicenseNotFoundError("License does not exist or is already revoked")
+        self.store.record_audit(
+            action="license.revoke",
+            actor=normalized_actor,
+            target_type="license",
+            target_id=str(license_id),
+            details={"reason": normalized_reason, "revoked_at": revoked_at},
+            created_at=revoked_at,
+        )
+        return revoked_at
+
+    def list_audit(self, *, limit: int, offset: int) -> list[AuditRecord]:
+        return self.store.list_audit(limit=limit, offset=offset)
 
     def authenticate(
         self,
