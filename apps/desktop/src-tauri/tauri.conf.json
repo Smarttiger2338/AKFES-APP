@@ -29,8 +29,14 @@
     }
   },
   "bundle": {
-    "active": false,
-    "targets": "all",
-    "icon": []
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/icon.png"],
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.png",
+        "installMode": "currentUser"
+      }
+    }
   }
 }
