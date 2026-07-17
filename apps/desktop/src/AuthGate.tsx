@@ -8,6 +8,7 @@ import {
   getOrCreateDeviceId,
   loadStoredSession,
   login,
+  logoutSession,
   saveApiUrl,
   saveSession,
   verifySession,
@@ -19,7 +20,7 @@ interface AuthGateProps {
   children: ReactNode;
 }
 
-type AuthState = "checking" | "signed-out" | "signing-in" | "signed-in";
+type AuthState = "checking" | "signed-out" | "signing-in" | "signed-in" | "signing-out";
 
 function formatUnixTime(value: number): string {
   return new Date(value * 1000).toLocaleString();
@@ -103,14 +104,34 @@ export default function AuthGate({ children }: AuthGateProps) {
     }
   };
 
-  const logout = () => {
-    clearStoredSession();
-    setSession(null);
-    setAuthState("signed-out");
-    setMessage("이 앱에 저장된 세션을 삭제했습니다. 서버 세션은 만료 시 자동 종료됩니다.");
+  const logout = async () => {
+    const currentSession = session;
+    if (!currentSession || authState === "signing-out") return;
+
+    setAuthState("signing-out");
+    setMessage("서버 세션과 사용하지 않은 챌린지를 폐기하고 있습니다.");
+    let logoutMessage = "서버 세션을 즉시 종료했습니다.";
+
+    try {
+      const result = await logoutSession(apiUrl, currentSession);
+      logoutMessage = result.deleted_challenges > 0
+        ? `서버 세션과 미사용 챌린지 ${result.deleted_challenges}개를 폐기했습니다.`
+        : "서버 세션을 즉시 종료했습니다.";
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        logoutMessage = "서버 세션이 이미 만료되었거나 종료되어 로컬 세션만 정리했습니다.";
+      } else {
+        logoutMessage = "서버에 연결하지 못해 로컬 세션을 삭제했습니다. 서버 세션은 만료 시 종료됩니다.";
+      }
+    } finally {
+      clearStoredSession();
+      setSession(null);
+      setAuthState("signed-out");
+      setMessage(logoutMessage);
+    }
   };
 
-  if (authState === "signed-in" && session) {
+  if ((authState === "signed-in" || authState === "signing-out") && session) {
     return (
       <AuthContext.Provider value={{ apiUrl, session, logout }}>
         <div className="authenticated-shell">
@@ -121,7 +142,9 @@ export default function AuthGate({ children }: AuthGateProps) {
             </div>
             <div>
               <span className="auth-device-label" title={session.deviceId}>장치 바인딩 완료</span>
-              <button className="secondary" onClick={logout}>로그아웃</button>
+              <button className="secondary" onClick={() => void logout()} disabled={authState === "signing-out"}>
+                {authState === "signing-out" ? "로그아웃 중..." : "로그아웃"}
+              </button>
             </div>
           </div>
           {children}
