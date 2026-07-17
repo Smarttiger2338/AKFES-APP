@@ -15,6 +15,7 @@ from .files import router as files_router
 from .health import HealthResponse, health, router as health_router
 from .license_service import LicenseService
 from .license_store import LicenseStore
+from .logout import router as logout_router
 from .request_security import RequestSecurityService
 from .signed_requests import router as signed_requests_router
 
@@ -85,6 +86,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health_router, prefix="/api/v2")
     app.include_router(auth_router, prefix="/api/v2")
+    app.include_router(logout_router, prefix="/api/v2")
     app.include_router(signed_requests_router, prefix="/api/v2")
     app.include_router(files_router, prefix="/api/v2")
     app.add_api_route(
