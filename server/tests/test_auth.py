@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from pathlib import Path
 
@@ -5,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
+from app.request_security import RequestSecurityService
 
 ADMIN_TOKEN = "test-admin-token-that-is-long-enough"
 ADMIN_HEADERS = {
@@ -28,6 +30,7 @@ def make_test_settings(tmp_path: Path) -> Settings:
         license_hmac_secret="test-license-secret-that-is-long-enough",
         admin_token=ADMIN_TOKEN,
         session_ttl_seconds=900,
+        challenge_ttl_seconds=60,
     )
 
 
@@ -38,6 +41,20 @@ def issue_license(client: TestClient, *, label: str = "test") -> dict[str, objec
         json={"duration_seconds": 3600, "label": label},
     )
     assert response.status_code == 201
+    return response.json()
+
+
+def login_session(
+    client: TestClient,
+    license_key: str,
+    *,
+    device_id: str | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {"license_key": license_key}
+    if device_id is not None:
+        payload["device_id"] = device_id
+    response = client.post("/api/v2/auth/login", json=payload)
+    assert response.status_code == 200
     return response.json()
 
 
@@ -62,12 +79,7 @@ def test_license_issue_login_and_session_status(tmp_path: Path) -> None:
     )
     assert invalid_login.status_code == 401
 
-    login = client.post(
-        "/api/v2/auth/login",
-        json={"license_key": license_key.lower(), "device_id": "device-01"},
-    )
-    assert login.status_code == 200
-    login_body = login.json()
+    login_body = login_session(client, license_key.lower(), device_id="device-01")
     assert login_body["session_token"]
     assert login_body["device_id"] == "device-01"
     assert login_body["session_expires_at"] <= login_body["license_expires_at"]
@@ -103,12 +115,8 @@ def test_license_list_revoke_and_audit(tmp_path: Path) -> None:
     license_id = int(issued["license_id"])
     license_key = str(issued["license_key"])
 
-    login = client.post(
-        "/api/v2/auth/login",
-        json={"license_key": license_key, "device_id": "device-01"},
-    )
-    assert login.status_code == 200
-    session_token = login.json()["session_token"]
+    login = login_session(client, license_key, device_id="device-01")
+    session_token = login["session_token"]
 
     listed = client.get("/api/v2/admin/licenses", headers=ADMIN_HEADERS)
     assert listed.status_code == 200
@@ -166,6 +174,130 @@ def test_license_list_revoke_and_audit(tmp_path: Path) -> None:
     assert revoke_event["actor"] == "test-operator"
     assert revoke_event["target_id"] == str(license_id)
     assert revoke_event["details"]["reason"] == "test cleanup"
+
+
+def test_one_time_challenge_and_request_signature(tmp_path: Path) -> None:
+    client = TestClient(create_app(make_test_settings(tmp_path)))
+    issued = issue_license(client, label="signature-test")
+    login = login_session(
+        client,
+        str(issued["license_key"]),
+        device_id="device-signing-01",
+    )
+    session_token = str(login["session_token"])
+    common_headers = {
+        "Authorization": f"Bearer {session_token}",
+        "X-AKFES-Device-ID": "device-signing-01",
+    }
+
+    challenge_response = client.post(
+        "/api/v2/auth/challenge",
+        headers=common_headers,
+    )
+    assert challenge_response.status_code == 200
+    challenge_body = challenge_response.json()
+    challenge = challenge_body["challenge"]
+    assert challenge_body["algorithm"] == "HMAC-SHA256"
+    assert challenge_body["canonical_version"] == "AKFES-V2"
+
+    body = json.dumps(
+        {"message": "signed request"},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    signature = RequestSecurityService.calculate_signature(
+        session_token=session_token,
+        method="POST",
+        path="/api/v2/auth/signed-check",
+        challenge=challenge,
+        body=body,
+        device_id="device-signing-01",
+    )
+    signed_headers = {
+        **common_headers,
+        "Content-Type": "application/json",
+        "X-AKFES-Challenge": challenge,
+        "X-AKFES-Signature": signature,
+    }
+
+    verified = client.post(
+        "/api/v2/auth/signed-check",
+        headers=signed_headers,
+        content=body,
+    )
+    assert verified.status_code == 200
+    assert verified.json()["valid"] is True
+    assert verified.json()["device_id"] == "device-signing-01"
+
+    replay = client.post(
+        "/api/v2/auth/signed-check",
+        headers=signed_headers,
+        content=body,
+    )
+    assert replay.status_code == 409
+
+    second_challenge = client.post(
+        "/api/v2/auth/challenge",
+        headers=common_headers,
+    ).json()["challenge"]
+    invalid_signature_headers = {
+        **common_headers,
+        "Content-Type": "application/json",
+        "X-AKFES-Challenge": second_challenge,
+        "X-AKFES-Signature": "0" * 64,
+    }
+    invalid_signature = client.post(
+        "/api/v2/auth/signed-check",
+        headers=invalid_signature_headers,
+        content=body,
+    )
+    assert invalid_signature.status_code == 401
+
+    valid_after_failed_attempt = RequestSecurityService.calculate_signature(
+        session_token=session_token,
+        method="POST",
+        path="/api/v2/auth/signed-check",
+        challenge=second_challenge,
+        body=body,
+        device_id="device-signing-01",
+    )
+    retry_headers = {
+        **invalid_signature_headers,
+        "X-AKFES-Signature": valid_after_failed_attempt,
+    }
+    retry = client.post(
+        "/api/v2/auth/signed-check",
+        headers=retry_headers,
+        content=body,
+    )
+    assert retry.status_code == 200
+
+    third_challenge = client.post(
+        "/api/v2/auth/challenge",
+        headers=common_headers,
+    ).json()["challenge"]
+    original_body_signature = RequestSecurityService.calculate_signature(
+        session_token=session_token,
+        method="POST",
+        path="/api/v2/auth/signed-check",
+        challenge=third_challenge,
+        body=body,
+        device_id="device-signing-01",
+    )
+    tampered = client.post(
+        "/api/v2/auth/signed-check",
+        headers={
+            **common_headers,
+            "Content-Type": "application/json",
+            "X-AKFES-Challenge": third_challenge,
+            "X-AKFES-Signature": original_body_signature,
+        },
+        content=json.dumps(
+            {"message": "tampered request"},
+            separators=(",", ":"),
+        ).encode("utf-8"),
+    )
+    assert tampered.status_code == 401
 
 
 def test_admin_endpoints_require_token(tmp_path: Path) -> None:
