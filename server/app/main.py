@@ -34,6 +34,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         store=LicenseStore(resolved_settings.database_path),
         hmac_secret=resolved_settings.license_hmac_secret,
         session_ttl_seconds=resolved_settings.session_ttl_seconds,
+        device_binding_required=resolved_settings.device_binding_required,
     )
     app.state.license_service = license_service
     app.state.request_security = RequestSecurityService(
