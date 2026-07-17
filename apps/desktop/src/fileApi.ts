@@ -1,3 +1,5 @@
+import { invoke } from "@tauri-apps/api/core";
+
 import { ApiError } from "./auth";
 import type { AuthSession } from "./auth";
 
@@ -158,9 +160,9 @@ export async function processFile(
   };
 }
 
-export function downloadProcessedFile(result: ProcessedFile): void {
-  const copy = new Uint8Array(result.bytes);
-  const blob = new Blob([copy.buffer], { type: "application/octet-stream" });
+function browserDownload(result: ProcessedFile): void {
+  const copiedBytes = new Uint8Array(result.bytes);
+  const blob = new Blob([copiedBytes.buffer], { type: "application/octet-stream" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -170,4 +172,13 @@ export function downloadProcessedFile(result: ProcessedFile): void {
   anchor.click();
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
+
+export function downloadProcessedFile(result: ProcessedFile): void {
+  void invoke<string | null>("save_processed_file", {
+    filename: result.filename,
+    bytes: Array.from(result.bytes),
+  }).catch(() => {
+    browserDownload(result);
+  });
 }
