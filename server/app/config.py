@@ -75,7 +75,7 @@ class Settings:
     session_ttl_seconds: int
     challenge_ttl_seconds: int
     device_binding_required: bool
-    pbkdf2_iterations: int
+    pbkdf2_iterations: int = 200_000
 
 
 @lru_cache(maxsize=1)
