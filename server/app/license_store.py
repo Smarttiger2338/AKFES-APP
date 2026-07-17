@@ -11,6 +11,7 @@ class LicenseRecord:
     license_id: int
     expires_at: int
     revoked_at: int | None
+    bound_device_digest: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,6 +21,7 @@ class LicenseSummary:
     created_at: int
     expires_at: int
     revoked_at: int | None
+    device_bound: bool
     active_session_count: int
 
 
@@ -66,7 +68,8 @@ class LicenseStore:
                     label TEXT,
                     created_at INTEGER NOT NULL,
                     expires_at INTEGER NOT NULL,
-                    revoked_at INTEGER
+                    revoked_at INTEGER,
+                    bound_device_digest TEXT
                 );
 
                 CREATE TABLE IF NOT EXISTS sessions (
@@ -102,6 +105,14 @@ class LicenseStore:
                     ON audit_log(action);
                 """
             )
+            columns = {
+                str(row["name"])
+                for row in connection.execute("PRAGMA table_info(licenses)").fetchall()
+            }
+            if "bound_device_digest" not in columns:
+                connection.execute(
+                    "ALTER TABLE licenses ADD COLUMN bound_device_digest TEXT"
+                )
 
     def create_license(
         self,
@@ -125,7 +136,7 @@ class LicenseStore:
         with self.connect() as connection:
             row = connection.execute(
                 """
-                SELECT id, expires_at, revoked_at
+                SELECT id, expires_at, revoked_at, bound_device_digest
                 FROM licenses
                 WHERE key_digest = ?
                 """,
@@ -137,7 +148,56 @@ class LicenseStore:
             license_id=int(row["id"]),
             expires_at=int(row["expires_at"]),
             revoked_at=int(row["revoked_at"]) if row["revoked_at"] is not None else None,
+            bound_device_digest=(
+                str(row["bound_device_digest"])
+                if row["bound_device_digest"] is not None
+                else None
+            ),
         )
+
+    def bind_license_device(self, *, license_id: int, device_digest: str) -> str | None:
+        with self.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT bound_device_digest FROM licenses WHERE id = ? AND revoked_at IS NULL",
+                (license_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            existing = (
+                str(row["bound_device_digest"])
+                if row["bound_device_digest"] is not None
+                else None
+            )
+            if existing is None:
+                connection.execute(
+                    "UPDATE licenses SET bound_device_digest = ? WHERE id = ?",
+                    (device_digest, license_id),
+                )
+                return device_digest
+            return existing
+
+    def clear_device_binding(self, *, license_id: int, revoked_at: int) -> bool:
+        with self.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE licenses
+                SET bound_device_digest = NULL
+                WHERE id = ? AND revoked_at IS NULL AND bound_device_digest IS NOT NULL
+                """,
+                (license_id,),
+            )
+            if cursor.rowcount == 0:
+                return False
+            connection.execute(
+                """
+                UPDATE sessions
+                SET revoked_at = ?
+                WHERE license_id = ? AND revoked_at IS NULL
+                """,
+                (revoked_at, license_id),
+            )
+            return True
 
     def list_licenses(self, *, limit: int, offset: int, now: int) -> list[LicenseSummary]:
         with self.connect() as connection:
@@ -149,6 +209,7 @@ class LicenseStore:
                     licenses.created_at,
                     licenses.expires_at,
                     licenses.revoked_at,
+                    licenses.bound_device_digest,
                     COUNT(sessions.id) AS active_session_count
                 FROM licenses
                 LEFT JOIN sessions
@@ -168,6 +229,7 @@ class LicenseStore:
                 created_at=int(row["created_at"]),
                 expires_at=int(row["expires_at"]),
                 revoked_at=int(row["revoked_at"]) if row["revoked_at"] is not None else None,
+                device_bound=row["bound_device_digest"] is not None,
                 active_session_count=int(row["active_session_count"]),
             )
             for row in rows
