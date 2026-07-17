@@ -75,6 +75,7 @@ class Settings:
     session_ttl_seconds: int
     challenge_ttl_seconds: int
     device_binding_required: bool
+    pbkdf2_iterations: int
 
 
 @lru_cache(maxsize=1)
@@ -133,4 +134,10 @@ def get_settings() -> Settings:
             maximum=300,
         ),
         device_binding_required=_boolean("AKFES_DEVICE_BINDING_REQUIRED", True),
+        pbkdf2_iterations=_integer(
+            "AKFES_PBKDF2_ITERATIONS",
+            200_000,
+            minimum=100_000,
+            maximum=2_000_000,
+        ),
     )
