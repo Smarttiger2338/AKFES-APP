@@ -12,10 +12,33 @@ AKFES-APP/
 ├─ firmware/arduino/         Arduino UNO 펌웨어
 ├─ scripts/                  Windows 개발 실행 스크립트
 ├─ START_AKFES.bat           개발 환경 원클릭 실행
-└─ .github/workflows/        CI와 Windows 설치 파일 빌드
+└─ .github/workflows/        CI·설치 파일·릴리스 자동화
 ```
 
 기존 Electron 클라이언트는 제거했으며 사용자 앱과 관리자 앱은 각각 독립된 Tauri 프로그램으로 구성됩니다.
+
+## 공식 릴리스
+
+`vX.Y.Z` 태그를 push하면 **Publish AKFES Release** 워크플로가 다음 항목을 검증하고 GitHub Release를 자동 생성합니다.
+
+- FastAPI Ruff·pytest
+- 사용자·관리자 React·TypeScript·Vite 빌드
+- 사용자·관리자 Rust `cargo check`
+- PyInstaller FastAPI 사이드카 `/health` 확인
+- 사용자용·관리자용 Windows NSIS 설치 파일
+- 독립 서버 실행 파일
+- 배포 파일 SHA-256 체크섬
+
+릴리스 산출물:
+
+```text
+AKFES-vX.Y.Z-Windows-x64-Setup.exe
+AKFES-License-Manager-vX.Y.Z-Windows-x64-Setup.exe
+akfes-server-vX.Y.Z-Windows-x64.exe
+SHA256SUMS.txt
+```
+
+상세 절차는 [`RELEASE.md`](RELEASE.md), 보안 제보와 비밀정보 정책은 [`SECURITY.md`](SECURITY.md)를 확인하세요.
 
 ## 사용자용 Windows 설치
 
@@ -46,6 +69,12 @@ AKFES-License-Manager
 - 관리자 감사 로그 조회
 
 관리자 앱도 FastAPI 사이드카를 포함하며 로컬 `%LOCALAPPDATA%\AKFES\server-runtime.json`의 관리자 토큰을 Rust 계층에서 읽습니다. 관리자 토큰은 화면에 평문으로 표시하지 않으며, 원격 서버를 관리할 때만 직접 입력할 수 있습니다.
+
+관리자 앱은 서버 시작에 실패하더라도 즉시 종료되지 않습니다. 시작 오류는 다음 파일에 기록됩니다.
+
+```text
+%LOCALAPPDATA%\AKFES\license-manager-startup-error.txt
+```
 
 개발 실행:
 
@@ -91,6 +120,8 @@ GitHub Actions에서는 다음 항목을 검사합니다.
 - 사용자 앱과 관리자 앱 Rust `cargo check`
 - PyInstaller 서버 상태 확인
 - 사용자용·관리자용 Windows NSIS 설치 파일 생성
+- 태그와 전체 앱 버전 일치 확인
+- 릴리스 파일 SHA-256 생성
 
 ## Arduino
 
@@ -102,11 +133,14 @@ GitHub Actions에서는 다음 항목을 검사합니다.
 통신 속도: 9600 baud
 ```
 
-## 남은 핵심 작업
+## 릴리스 전 남은 외부 준비
 
-- 파일 전체 메모리 적재를 없애는 청크 기반 AKFES v3 포맷
-- 실제 앱 아이콘과 Windows 코드 서명
-- 관리자 권한을 Windows 자격 증명 또는 TPM과 연결
-- Windows·Arduino·서버 통합 테스트
+- 임시 아이콘을 실제 AKFES 브랜드 아이콘으로 교체
+- Windows Authenticode 코드 서명 인증서 발급 및 Secret 등록
+- Tauri 업데이트 서명 키 등록
+- Windows·Arduino·서버 실제 장치 통합 테스트
+- 대용량 파일용 청크 기반 AKFES v3 포맷
+
+코드 서명 인증서와 실제 브랜드 아이콘은 외부 자산이므로 저장소 코드만으로 자동 생성할 수 없습니다.
 
 세부 진행 상황은 [`V2_MIGRATION.md`](V2_MIGRATION.md), 개선 계획은 [`IMPROVEMENTS.md`](IMPROVEMENTS.md)를 확인하세요.
