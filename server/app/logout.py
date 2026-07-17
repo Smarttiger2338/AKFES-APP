@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from typing import Annotated
 
@@ -58,17 +59,35 @@ def logout(
             (session.session_id,),
         )
         deleted_challenges = max(challenge_cursor.rowcount, 0)
-        service.store.record_audit(
-            action="session.logout",
-            actor="client",
-            target_type="session",
-            target_id=str(session.session_id),
-            details={
+        details = json.dumps(
+            {
                 "license_id": session.license_id,
                 "revoked_at": revoked_at,
                 "deleted_challenges": deleted_challenges,
             },
-            created_at=revoked_at,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        connection.execute(
+            """
+            INSERT INTO audit_log (
+                action,
+                actor,
+                target_type,
+                target_id,
+                details_json,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "session.logout",
+                "client",
+                "session",
+                str(session.session_id),
+                details,
+                revoked_at,
+            ),
         )
 
     return LogoutResponse(
