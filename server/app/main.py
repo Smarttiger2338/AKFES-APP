@@ -13,6 +13,7 @@ from .config import Settings, get_settings
 from .health import HealthResponse, health, router as health_router
 from .license_service import LicenseService
 from .license_store import LicenseStore
+from .request_security import RequestSecurityService
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -28,10 +29,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url=openapi_url,
     )
     app.state.settings = resolved_settings
-    app.state.license_service = LicenseService(
+    license_service = LicenseService(
         store=LicenseStore(resolved_settings.database_path),
         hmac_secret=resolved_settings.license_hmac_secret,
         session_ttl_seconds=resolved_settings.session_ttl_seconds,
+    )
+    app.state.license_service = license_service
+    app.state.request_security = RequestSecurityService(
+        license_service=license_service,
+        challenge_ttl_seconds=resolved_settings.challenge_ttl_seconds,
     )
     app.dependency_overrides[get_settings] = lambda: resolved_settings
 
