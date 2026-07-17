@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import hmac
+import time
 from typing import Annotated
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from .license_service import (
+    DeviceBindingError,
     ExpiredLicenseError,
     InvalidLicenseError,
     InvalidSessionError,
@@ -43,10 +45,11 @@ class LicenseSummaryResponse(BaseModel):
     expires_at: int
     revoked_at: int | None
     status: str
+    device_bound: bool
     active_session_count: int
 
 
-class RevokeLicenseRequest(BaseModel):
+class AdminReasonRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     reason: str | None = Field(default=None, max_length=240)
@@ -57,6 +60,13 @@ class RevokeLicenseResponse(BaseModel):
 
     license_id: int
     revoked_at: int
+
+
+class ResetDeviceBindingResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    license_id: int
+    reset_at: int
 
 
 class AuditResponse(BaseModel):
@@ -171,8 +181,6 @@ def list_licenses(
     x_akfes_admin_token: Annotated[str | None, Header()] = None,
 ) -> list[LicenseSummaryResponse]:
     require_admin_token(request, x_akfes_admin_token)
-    import time
-
     now = int(time.time())
     records = get_license_service(request).list_licenses(limit=limit, offset=offset, now=now)
     return [
@@ -183,6 +191,7 @@ def list_licenses(
             expires_at=record.expires_at,
             revoked_at=record.revoked_at,
             status=license_status(record.expires_at, record.revoked_at, now),
+            device_bound=record.device_bound,
             active_session_count=record.active_session_count,
         )
         for record in records
@@ -196,7 +205,7 @@ def list_licenses(
 )
 def revoke_license(
     license_id: int,
-    payload: RevokeLicenseRequest,
+    payload: AdminReasonRequest,
     request: Request,
     x_akfes_admin_token: Annotated[str | None, Header()] = None,
     x_akfes_admin_actor: Annotated[str | None, Header()] = None,
@@ -214,6 +223,33 @@ def revoke_license(
             detail="License does not exist or is already revoked",
         ) from error
     return RevokeLicenseResponse(license_id=license_id, revoked_at=revoked_at)
+
+
+@router.post(
+    "/admin/licenses/{license_id}/device-binding/reset",
+    response_model=ResetDeviceBindingResponse,
+    tags=["admin"],
+)
+def reset_device_binding(
+    license_id: int,
+    payload: AdminReasonRequest,
+    request: Request,
+    x_akfes_admin_token: Annotated[str | None, Header()] = None,
+    x_akfes_admin_actor: Annotated[str | None, Header()] = None,
+) -> ResetDeviceBindingResponse:
+    require_admin_token(request, x_akfes_admin_token)
+    try:
+        reset_at = get_license_service(request).reset_device_binding(
+            license_id=license_id,
+            actor=x_akfes_admin_actor,
+            reason=payload.reason,
+        )
+    except LicenseNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="License is missing, revoked, or not device-bound",
+        ) from error
+    return ResetDeviceBindingResponse(license_id=license_id, reset_at=reset_at)
 
 
 @router.get(
@@ -264,6 +300,11 @@ def login(payload: LoginRequest, request: Request) -> LoginResponse:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="License has been revoked",
+        ) from error
+    except DeviceBindingError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(error),
         ) from error
     except ValueError as error:
         raise HTTPException(
