@@ -2,6 +2,13 @@ name: Build AKFES Windows Installer
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/desktop/**"
+      - "package.json"
+      - ".github/workflows/windows-installer.yml"
   push:
     branches:
       - v2-tauri-refactor
@@ -14,11 +21,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: akfes-windows-installer-${{ github.ref }}
+  group: akfes-windows-installer-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
+    name: Build NSIS installer
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
