@@ -40,7 +40,7 @@ AKFES-APP/
 - `SUCCESS`, `FAIL` 명령을 이용한 초록·빨강 LED 테스트
 - 연결 상태, 오류, 통신 로그 UI
 
-라이선스 인증과 실제 파일 처리는 아직 v2 서버와 연결하지 않았습니다. 화면에서 인증 성공이나 파일 처리 성공을 임의로 표시하지 않습니다.
+라이선스 서버 API는 준비됐지만 Tauri 로그인 화면은 아직 해당 API를 호출하지 않습니다. 화면에서 인증 성공이나 파일 처리 성공을 임의로 표시하지 않습니다.
 
 ## 데스크톱 실행 준비
 
@@ -73,17 +73,22 @@ npm run desktop:build
 
 ## FastAPI 서버
 
-새 서버 기본 구조는 `server/`에 있습니다.
+새 서버는 `server/`에 있습니다.
 
 현재 구현된 기능:
 
 - `GET /api/v2/health`
 - 기존 클라이언트 호환용 `GET /health`
+- 관리자 토큰 기반 `POST /api/v2/admin/licenses`
+- 라이선스 로그인 `POST /api/v2/auth/login`
+- Bearer 세션 확인 `GET /api/v2/auth/session`
+- SQLite 기반 라이선스·세션 저장
+- 라이선스 키와 세션 토큰의 HMAC-SHA256 다이제스트 저장
+- 선택적 장치 ID 세션 바인딩
 - 환경변수 기반 CORS와 Trusted Host 제한
-- 업로드 최대 크기 설정
-- 캐시 방지, Referrer 제한, MIME 스니핑 방지, 요청 ID 응답 헤더
-- 개발 환경에서만 기본 활성화되는 API 문서
-- pytest 상태 확인 테스트
+- 업로드 최대 크기와 세션 만료 시간 설정
+- 보안 응답 헤더와 개발용 API 문서
+- 상태 확인·인증 흐름 pytest 테스트
 
 Windows PowerShell 실행 예시:
 
@@ -103,18 +108,16 @@ python -m pytest
 python -m ruff check .
 ```
 
-자세한 서버 설정은 [`server/README.md`](server/README.md)에서 확인할 수 있습니다.
+자세한 서버 설정과 API 사용 예시는 [`server/README.md`](server/README.md)에서 확인할 수 있습니다.
 
 ## 남은 서버 이전
 
-기존 `AKFES-Server`의 다음 기능은 검증하면서 새 `server/`로 옮길 예정입니다.
-
-- 라이선스 발급·검증
-- 만료 시간이 있는 세션
-- 장치 바인딩
+- 라이선스 취소·목록 관리와 관리자 감사 로그
 - 일회용 챌린지와 요청 서명
+- 강제 장치 바인딩 정책
 - AES-256-GCM 파일 처리
 - 결과 파일 다운로드
+- Tauri 클라이언트 로그인·파일 작업 연결
 
 운영 서버의 비밀키와 설정은 클라이언트나 저장소에 포함하지 않습니다.
 
@@ -139,4 +142,4 @@ firmware/arduino/project.ino
 
 자세한 작업 상태는 [`V2_MIGRATION.md`](V2_MIGRATION.md)에서 확인할 수 있습니다.
 
-> 현재 브랜치는 리팩터링 중인 개발 브랜치입니다. FastAPI 상태 확인 테스트는 통과했지만 실제 Arduino, Windows Tauri 빌드, 라이선스, 파일 암호화까지 포함한 통합 테스트는 아직 완료되지 않았습니다.
+> 현재 브랜치는 리팩터링 중인 개발 브랜치입니다. FastAPI 인증 흐름 테스트는 통과했지만 실제 Arduino, Windows Tauri 빌드, 챌린지·요청 서명, 파일 암호화까지 포함한 통합 테스트는 아직 완료되지 않았습니다.
