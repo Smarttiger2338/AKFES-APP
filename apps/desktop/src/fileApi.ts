@@ -159,7 +159,8 @@ export async function processFile(
 }
 
 export function downloadProcessedFile(result: ProcessedFile): void {
-  const blob = new Blob([result.bytes], { type: "application/octet-stream" });
+  const copy = new Uint8Array(result.bytes);
+  const blob = new Blob([copy.buffer], { type: "application/octet-stream" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
