@@ -123,9 +123,11 @@ jobs:
       - name: Run cargo check
         id: cargo
         shell: bash
+        env:
+          RUST_BACKTRACE: "1"
         run: |
           set +e
-          cargo check --message-format=short 2>&1 | tee cargo-check.txt
+          cargo check 2>&1 | tee cargo-check.txt
           status=${PIPESTATUS[0]}
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
