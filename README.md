@@ -1,145 +1,119 @@
 # AKFES v2
 
-Arduino 키패드를 이용해 파일 암호화·복호화 비밀번호를 입력하는 데스크톱 보안 애플리케이션입니다.
+Arduino 키패드와 Tauri 데스크톱 앱을 이용해 파일을 AES-256-GCM으로 암호화·복호화하는 프로젝트입니다.
 
-이 브랜치에서는 기존 Electron과 PySide6 클라이언트를 사용하지 않습니다. 데스크톱 클라이언트는 Tauri v2, Rust, React, TypeScript로 다시 구성하고 있으며 서버는 FastAPI로 단계적으로 이전하고 있습니다.
-
-## 현재 구성
+## 구성
 
 ```text
 AKFES-APP/
-├─ apps/
-│  └─ desktop/
-│     ├─ src/                 React + TypeScript UI
-│     └─ src-tauri/           Tauri v2 + Rust
-├─ server/
-│  ├─ app/                    FastAPI v2 애플리케이션
-│  ├─ tests/                  서버 자동 테스트
-│  └─ README.md
-├─ firmware/
-│  └─ arduino/
-│     └─ project.ino
-├─ AKFES-Server/              이전 전의 기존 서버
-├─ V2_MIGRATION.md
-└─ package.json
+├─ apps/desktop/             Tauri v2 + Rust + React + TypeScript
+├─ server/                   FastAPI 인증·암호화 서버
+├─ firmware/arduino/         Arduino UNO 펌웨어
+├─ scripts/                  Windows 실행 스크립트
+├─ START_AKFES.bat           개발 환경 원클릭 실행
+└─ .github/workflows/        CI와 Windows 설치 파일 빌드
 ```
 
-## 데스크톱 클라이언트
+기존 Electron 클라이언트는 제거했으며 새 코드는 `apps/desktop`과 `server`만 사용합니다.
 
-현재 구현된 기능:
+## 원클릭 실행
 
-- Tauri v2 데스크톱 프로젝트 구조
-- React·TypeScript 기반 단계별 화면
-- 대표 블루 색상의 웹앱형 디자인
-- AKFES 전용 상단 바와 창 제어 버튼
-- 라이선스 → 장치 연결 → 파일 작업 → 결과 흐름
-- Rust 기반 시리얼 포트 검색, 연결, 해제, 송신, 백그라운드 수신
-- Arduino `READY`, `PAIR:`, `KEY:` 프로토콜 처리
-- 16키 키패드 매핑과 로컬 저장
-- 키패드 비밀번호 입력과 삭제
-- `SUCCESS`, `FAIL` 명령을 이용한 초록·빨강 LED 테스트
-- 연결 상태, 오류, 통신 로그 UI
+Windows에서 저장소를 내려받은 뒤 루트의 다음 파일을 실행합니다.
 
-라이선스 서버 API는 준비됐지만 Tauri 로그인 화면은 아직 해당 API를 호출하지 않습니다. 화면에서 인증 성공이나 파일 처리 성공을 임의로 표시하지 않습니다.
+```text
+START_AKFES.bat
+```
 
-## 데스크톱 실행 준비
+스크립트가 자동으로 다음 작업을 수행합니다.
 
-필요한 개발 도구:
+1. Python·Node.js·Rust 설치 여부 확인
+2. `server/.venv` 생성
+3. FastAPI와 데스크톱 의존성 설치
+4. FastAPI 서버 시작 및 `/health` 확인
+5. Tauri 데스크톱 실행
 
-- Node.js 및 npm
-- Rust 및 Cargo
-- Tauri v2를 빌드할 수 있는 Windows 개발 환경
+처음 실행에는 의존성 설치가 필요합니다. Python 3.11 이상, Node.js LTS, Rust와 Tauri Windows 빌드 도구가 설치되어 있어야 합니다.
 
-저장소 루트에서 실행합니다.
+## Windows 설치 실행 파일
 
-```bash
+GitHub Actions의 **Build AKFES Windows Installer** 워크플로가 NSIS 설치 파일을 생성합니다.
+
+결과물 이름:
+
+```text
+AKFES-Windows-Installer
+```
+
+워크플로 아티팩트 안의 `.exe` 파일을 실행하면 현재 사용자 계정에 AKFES 데스크톱 앱이 설치됩니다. 이 설치 파일은 데스크톱 앱용이며 FastAPI 서버는 별도로 실행되어야 합니다. 완전한 단일 실행 파일 배포는 서버 사이드카 패키징 단계에서 진행합니다.
+
+## 보안 흐름
+
+- 라이선스·만료·취소 검증
+- 첫 로그인 장치 바인딩
+- 만료 시간이 있는 세션
+- 일회용 챌린지
+- HTTP 경로·본문 해시·장치 ID 기반 HMAC-SHA256 요청 서명
+- 명시적 로그아웃과 미사용 챌린지 폐기
+- PBKDF2-HMAC-SHA256 200,000회 기반 AES-256-GCM
+- 암호문 변조와 잘못된 비밀번호 감지
+
+## 파일 전송
+
+데스크톱은 다음 바이너리 API를 사용합니다.
+
+```text
+POST /api/v2/files/encrypt-binary
+POST /api/v2/files/decrypt-binary
+```
+
+파일은 `application/octet-stream`으로 전송되어 JSON Base64 방식의 약 33% 크기 증가와 문자열 복사 비용을 제거합니다. 기존 JSON API는 호환성을 위해 서버에 남아 있습니다.
+
+## 개발 실행
+
+```powershell
 npm install
 npm run desktop:dev
 ```
 
-프런트엔드 화면만 확인할 때:
-
-```bash
-npm run desktop:web
-```
-
-배포 빌드:
-
-```bash
-npm run desktop:build
-```
-
-현재 `tauri.conf.json`의 번들 생성은 비활성화되어 있습니다. 앱 아이콘, 설치 프로그램, 코드 서명 구성을 완료한 뒤 활성화할 예정입니다.
-
-## FastAPI 서버
-
-새 서버는 `server/`에 있습니다.
-
-현재 구현된 기능:
-
-- `GET /api/v2/health`
-- 기존 클라이언트 호환용 `GET /health`
-- 관리자 토큰 기반 `POST /api/v2/admin/licenses`
-- 라이선스 로그인 `POST /api/v2/auth/login`
-- Bearer 세션 확인 `GET /api/v2/auth/session`
-- SQLite 기반 라이선스·세션 저장
-- 라이선스 키와 세션 토큰의 HMAC-SHA256 다이제스트 저장
-- 선택적 장치 ID 세션 바인딩
-- 환경변수 기반 CORS와 Trusted Host 제한
-- 업로드 최대 크기와 세션 만료 시간 설정
-- 보안 응답 헤더와 개발용 API 문서
-- 상태 확인·인증 흐름 pytest 테스트
-
-Windows PowerShell 실행 예시:
+서버만 실행:
 
 ```powershell
 cd server
 py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[dev]"
-Copy-Item .env.example .env
-python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-검사:
+## 검사
 
 ```powershell
-python -m pytest
-python -m ruff check .
+cd server
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m pytest
+
+cd ..
+npm --workspace apps/desktop run build
+cd apps/desktop/src-tauri
+cargo check
 ```
 
-자세한 서버 설정과 API 사용 예시는 [`server/README.md`](server/README.md)에서 확인할 수 있습니다.
-
-## 남은 서버 이전
-
-- 라이선스 취소·목록 관리와 관리자 감사 로그
-- 일회용 챌린지와 요청 서명
-- 강제 장치 바인딩 정책
-- AES-256-GCM 파일 처리
-- 결과 파일 다운로드
-- Tauri 클라이언트 로그인·파일 작업 연결
-
-운영 서버의 비밀키와 설정은 클라이언트나 저장소에 포함하지 않습니다.
+GitHub Actions에서는 FastAPI Ruff·pytest, TypeScript·Vite 빌드, Rust `cargo check`를 독립적으로 검사합니다.
 
 ## Arduino
 
-펌웨어 위치:
-
 ```text
-firmware/arduino/project.ino
-```
-
-기본 핀 구성:
-
-```text
-키패드 8선: D2~D9
-초록색 LED: D10
-빨간색 LED: D11
+펌웨어: firmware/arduino/project.ino
+키패드: D2~D9
+초록 LED: D10
+빨강 LED: D11
 통신 속도: 9600 baud
 ```
 
-## 마이그레이션 진행 상황
+## 남은 핵심 작업
 
-자세한 작업 상태는 [`V2_MIGRATION.md`](V2_MIGRATION.md)에서 확인할 수 있습니다.
+- FastAPI 서버의 Windows 사이드카 패키징
+- 파일 전체 메모리 적재를 없애는 청크 기반 AKFES v3 포맷
+- 실제 앱 아이콘과 코드 서명
+- Windows·Arduino·서버 통합 테스트
 
-> 현재 브랜치는 리팩터링 중인 개발 브랜치입니다. FastAPI 인증 흐름 테스트는 통과했지만 실제 Arduino, Windows Tauri 빌드, 챌린지·요청 서명, 파일 암호화까지 포함한 통합 테스트는 아직 완료되지 않았습니다.
+세부 진행 상황은 [`V2_MIGRATION.md`](V2_MIGRATION.md), 개선 계획은 [`IMPROVEMENTS.md`](IMPROVEMENTS.md)를 확인하세요.
