@@ -74,6 +74,7 @@ class Settings:
     admin_token: str
     session_ttl_seconds: int
     challenge_ttl_seconds: int
+    device_binding_required: bool
 
 
 @lru_cache(maxsize=1)
@@ -131,4 +132,5 @@ def get_settings() -> Settings:
             minimum=10,
             maximum=300,
         ),
+        device_binding_required=_boolean("AKFES_DEVICE_BINDING_REQUIRED", True),
     )
