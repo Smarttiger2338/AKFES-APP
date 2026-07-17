@@ -44,10 +44,14 @@
 - [x] 저장 파일명 경로 제거·Windows 금지 문자 정리·길이 제한
 - [x] 브라우저 개발 미리보기용 다운로드 폴백
 - [x] 개선 우선순위와 운영 로드맵 문서화
+- [x] GitHub Actions FastAPI pytest·Ruff 검사
+- [x] GitHub Actions React·TypeScript 프로덕션 빌드 검사
+- [x] GitHub Actions Tauri Rust `cargo check`
+- [x] CI 작업별 타임아웃·동시 실행 취소·최소 읽기 권한 설정
 
 ## 진행 예정
 
-- [ ] GitHub Actions CI와 전체 빌드 오류 제거
+- [ ] 첫 CI 실행 결과에 따른 전체 빌드 오류 제거
 - [ ] Tauri 네이티브 파일 열기 대화상자와 저장 상태 피드백
 - [ ] 서버 세션 명시적 로그아웃·취소 API
 - [ ] 대용량 파일 스트리밍 또는 임시 파일 처리
@@ -55,6 +59,29 @@
 - [ ] 앱 아이콘 및 Windows 설치 프로그램
 - [ ] 코드 서명과 자동 릴리스
 - [ ] Windows + Arduino + 서버 통합 테스트
+
+## GitHub Actions CI
+
+`.github/workflows/ci.yml`은 `main` 대상 Pull Request와 `main`, `v2-tauri-refactor` 브랜치 push에서 실행됩니다.
+
+독립된 세 작업으로 구성됩니다.
+
+1. **FastAPI tests and lint**
+   - Python 3.12
+   - 개발 의존성 설치
+   - Ruff 정적 검사
+   - 임시 SQLite 데이터베이스를 사용하는 pytest
+2. **React and TypeScript build**
+   - Node.js 22
+   - npm 워크스페이스 의존성 설치
+   - `tsc --noEmit`과 Vite 프로덕션 빌드
+3. **Tauri Rust check**
+   - Ubuntu Tauri·WebKit·시리얼 포트 시스템 의존성 설치
+   - Rust stable
+   - Cargo 캐시
+   - `cargo check`
+
+현재 저장소에는 npm과 Cargo lockfile이 없으므로 첫 CI는 `npm install`과 일반 `cargo check`를 사용합니다. 의존성 재현성을 높이려면 CI가 안정화된 후 `package-lock.json`과 `Cargo.lock`을 커밋하고 `npm ci`, `cargo check --locked`로 전환해야 합니다.
 
 ## 데스크톱 인증 흐름
 
@@ -109,4 +136,4 @@
 
 ## 현재 한계
 
-파일 API가 JSON Base64 방식이므로 대용량 파일에서는 메모리 사용량과 전송량이 증가합니다. 네이티브 저장 대화상자는 연결됐지만 저장 성공 경로와 사용자의 저장 취소를 React 화면에 구분해 표시하는 작업은 남아 있습니다.
+파일 API가 JSON Base64 방식이므로 대용량 파일에서는 메모리 사용량과 전송량이 증가합니다. 네이티브 저장 대화상자는 연결됐지만 저장 성공 경로와 사용자의 저장 취소를 React 화면에 구분해 표시하는 작업은 남아 있습니다. CI 워크플로는 추가됐지만 첫 GitHub Actions 실행 결과를 확인해 발견되는 실제 빌드 오류를 수정해야 합니다.
