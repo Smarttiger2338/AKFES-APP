@@ -31,7 +31,10 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "icon": ["icons/icon.ico"],
+    "icon": ["icons/icon.png", "icons/icon.ico"],
+    "resources": {
+      "binaries/akfes-server.exe": "akfes-server.exe"
+    },
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico",
