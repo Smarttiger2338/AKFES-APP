@@ -94,6 +94,8 @@ def get_settings() -> Settings:
         cors_origins=_csv(
             "AKFES_CORS_ORIGINS",
             (
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
                 "http://localhost:1420",
                 "http://127.0.0.1:1420",
                 "http://tauri.localhost",
