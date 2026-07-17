@@ -10,6 +10,8 @@ from starlette.responses import Response
 
 from .auth import router as auth_router
 from .config import Settings, get_settings
+from .file_crypto import FileCryptoService
+from .files import router as files_router
 from .health import HealthResponse, health, router as health_router
 from .license_service import LicenseService
 from .license_store import LicenseStore
@@ -40,6 +42,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.request_security = RequestSecurityService(
         license_service=license_service,
         challenge_ttl_seconds=resolved_settings.challenge_ttl_seconds,
+    )
+    app.state.file_crypto = FileCryptoService(
+        iterations=resolved_settings.pbkdf2_iterations,
+        max_file_bytes=resolved_settings.max_upload_bytes,
     )
     app.dependency_overrides[get_settings] = lambda: resolved_settings
 
@@ -80,6 +86,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health_router, prefix="/api/v2")
     app.include_router(auth_router, prefix="/api/v2")
     app.include_router(signed_requests_router, prefix="/api/v2")
+    app.include_router(files_router, prefix="/api/v2")
     app.add_api_route(
         "/health",
         health,
