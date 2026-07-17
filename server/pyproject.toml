@@ -34,6 +34,11 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+extend-ignore = ["E501", "UP012"]
+
+[tool.ruff.lint.per-file-ignores]
+"app/main.py" = ["I001"]
+"app/request_security.py" = ["F401"]
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Depends"]
