@@ -4,6 +4,9 @@ import os
 from dataclasses import dataclass
 from functools import lru_cache
 
+_DEVELOPMENT_LICENSE_SECRET = "development-only-license-secret-change-me"
+_DEVELOPMENT_ADMIN_TOKEN = "development-only-admin-token-change-me"
+
 
 def _csv(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     raw = os.getenv(name)
@@ -40,6 +43,21 @@ def _integer(name: str, default: int, *, minimum: int, maximum: int) -> int:
     return value
 
 
+def _required_production_secret(
+    name: str,
+    *,
+    environment: str,
+    development_default: str,
+    minimum_length: int = 32,
+) -> str:
+    value = os.getenv(name, development_default).strip()
+    if len(value) < minimum_length:
+        raise RuntimeError(f"{name} must contain at least {minimum_length} characters")
+    if environment == "production" and value == development_default:
+        raise RuntimeError(f"{name} must be explicitly configured in production")
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     app_name: str
@@ -51,6 +69,10 @@ class Settings:
     cors_origins: tuple[str, ...]
     allowed_hosts: tuple[str, ...]
     max_upload_bytes: int
+    database_path: str
+    license_hmac_secret: str
+    admin_token: str
+    session_ttl_seconds: int
 
 
 @lru_cache(maxsize=1)
@@ -84,5 +106,22 @@ def get_settings() -> Settings:
             100 * 1024 * 1024,
             minimum=1,
             maximum=2 * 1024 * 1024 * 1024,
+        ),
+        database_path=os.getenv("AKFES_DATABASE_PATH", "data/akfes.sqlite3").strip(),
+        license_hmac_secret=_required_production_secret(
+            "AKFES_LICENSE_HMAC_SECRET",
+            environment=environment,
+            development_default=_DEVELOPMENT_LICENSE_SECRET,
+        ),
+        admin_token=_required_production_secret(
+            "AKFES_ADMIN_TOKEN",
+            environment=environment,
+            development_default=_DEVELOPMENT_ADMIN_TOKEN,
+        ),
+        session_ttl_seconds=_integer(
+            "AKFES_SESSION_TTL_SECONDS",
+            900,
+            minimum=60,
+            maximum=86_400,
         ),
     )
