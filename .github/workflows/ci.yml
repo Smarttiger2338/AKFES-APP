@@ -62,7 +62,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
 
       - name: Install npm dependencies
         run: npm install --no-audit --no-fund
@@ -101,4 +100,4 @@ jobs:
           workspaces: apps/desktop/src-tauri
 
       - name: Run cargo check
-        run: cargo check --locked
+        run: cargo check
