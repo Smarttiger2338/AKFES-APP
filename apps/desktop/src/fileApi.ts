@@ -20,6 +20,17 @@ interface FileOperationResponse {
   key_derivation: string;
 }
 
+interface NativeSelectedFile {
+  filename: string;
+  bytes: number[];
+  sizeBytes: number;
+}
+
+interface NativeSaveResult {
+  status: "saved" | "cancelled";
+  path: string | null;
+}
+
 export interface ProcessedFile {
   filename: string;
   bytes: Uint8Array;
@@ -174,11 +185,85 @@ function browserDownload(result: ProcessedFile): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
-export function downloadProcessedFile(result: ProcessedFile): void {
-  void invoke<string | null>("save_processed_file", {
-    filename: result.filename,
-    bytes: Array.from(result.bytes),
-  }).catch(() => {
-    browserDownload(result);
-  });
+function updateSaveStatus(message: string, path: string | null): void {
+  const notice = document.querySelector<HTMLElement>(".notice");
+  if (notice) notice.textContent = message;
+
+  const resultList = document.querySelector<HTMLDListElement>(".result-state dl");
+  if (!resultList) return;
+  let row = resultList.querySelector<HTMLElement>("[data-akfes-save-status]");
+  if (!row) {
+    row = document.createElement("div");
+    row.dataset.akfesSaveStatus = "true";
+    row.innerHTML = "<dt>저장 상태</dt><dd></dd>";
+    resultList.appendChild(row);
+  }
+  const value = row.querySelector<HTMLElement>("dd");
+  if (value) value.textContent = path ?? message;
 }
+
+export async function downloadProcessedFile(result: ProcessedFile): Promise<void> {
+  try {
+    const outcome = await invoke<NativeSaveResult>("save_processed_file", {
+      filename: result.filename,
+      bytes: Array.from(result.bytes),
+    });
+    if (outcome.status === "cancelled") {
+      updateSaveStatus("파일 저장을 취소했습니다. 결과는 앱 메모리에 유지됩니다.", null);
+      return;
+    }
+    updateSaveStatus(`결과 파일을 저장했습니다: ${outcome.path ?? result.filename}`, outcome.path);
+  } catch {
+    browserDownload(result);
+    updateSaveStatus("브라우저 다운로드 방식으로 결과 파일을 저장했습니다.", null);
+  }
+}
+
+const nativePickerBypass = new WeakSet<HTMLInputElement>();
+let nativePickerInstalled = false;
+
+function installNativeFilePickerBridge(): void {
+  if (nativePickerInstalled || typeof document === "undefined") return;
+  nativePickerInstalled = true;
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement) || target.type !== "file") return;
+    if (!target.closest(".file-picker")) return;
+    if (nativePickerBypass.has(target)) {
+      nativePickerBypass.delete(target);
+      return;
+    }
+
+    event.preventDefault();
+    void invoke<NativeSelectedFile | null>("select_native_file")
+      .then((selection) => {
+        if (!selection) {
+          const notice = document.querySelector<HTMLElement>(".notice");
+          if (notice) notice.textContent = "파일 선택을 취소했습니다.";
+          return;
+        }
+        const bytes = new Uint8Array(selection.bytes);
+        if (bytes.byteLength !== selection.sizeBytes) {
+          throw new Error("선택한 파일 크기 정보가 실제 데이터와 일치하지 않습니다.");
+        }
+        const file = new File([bytes], selection.filename, {
+          type: "application/octet-stream",
+          lastModified: Date.now(),
+        });
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        target.files = transfer.files;
+        target.dispatchEvent(new Event("change", { bubbles: true }));
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        const notice = document.querySelector<HTMLElement>(".notice");
+        if (notice) notice.textContent = `네이티브 파일 선택 실패: ${message}`;
+        nativePickerBypass.add(target);
+        target.click();
+      });
+  }, true);
+}
+
+installNativeFilePickerBridge();
