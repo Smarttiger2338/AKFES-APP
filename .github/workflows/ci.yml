@@ -115,6 +115,11 @@ jobs:
         with:
           workspaces: apps/desktop/src-tauri
 
+      - name: Prepare frontendDist for Tauri context
+        run: |
+          mkdir -p ../dist
+          printf '<!doctype html><html><body>CI placeholder</body></html>\n' > ../dist/index.html
+
       - name: Run cargo check
         id: cargo
         shell: bash
