@@ -49,7 +49,7 @@ def configure_environment() -> None:
     os.environ.setdefault("AKFES_ALLOWED_HOSTS", "127.0.0.1,localhost")
     os.environ.setdefault(
         "AKFES_CORS_ORIGINS",
-        "http://tauri.localhost,tauri://localhost,http://127.0.0.1:1420,http://localhost:1420",
+        "http://tauri.localhost,tauri://localhost,http://127.0.0.1:1420,http://localhost:1420,http://127.0.0.1:5174,http://localhost:5174",
     )
     os.environ.setdefault("AKFES_DATABASE_PATH", str(directory / "akfes.sqlite3"))
     os.environ.setdefault("AKFES_LICENSE_HMAC_SECRET", runtime["license_secret"])
