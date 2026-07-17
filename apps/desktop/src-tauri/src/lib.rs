@@ -2,10 +2,11 @@ use serde::Serialize;
 use serialport::SerialPortType;
 use std::io::{ErrorKind, Read, Write};
 use std::path::Path;
+use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 
 const MAX_NATIVE_FILE_BYTES: u64 = 100 * 1024 * 1024;
 
@@ -36,6 +37,52 @@ struct SerialConnection {
     port: Arc<Mutex<Option<Box<dyn serialport::SerialPort>>>>,
     stop_signal: Arc<Mutex<Option<mpsc::Sender<()>>>>,
     generation: Arc<AtomicU64>,
+}
+
+#[derive(Default)]
+struct ServerSidecar {
+    child: Mutex<Option<Child>>,
+}
+
+fn start_server_sidecar(app: &AppHandle, sidecar: &ServerSidecar) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let executable = app
+            .path()
+            .resource_dir()
+            .map_err(|error| format!("서버 리소스 경로를 찾지 못했습니다: {error}"))?
+            .join("akfes-server.exe");
+        let metadata = std::fs::metadata(&executable)
+            .map_err(|error| format!("서버 실행 파일을 확인하지 못했습니다: {error}"))?;
+        if metadata.len() == 0 {
+            return Ok(());
+        }
+        let child = Command::new(&executable)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(|error| format!("내장 FastAPI 서버를 시작하지 못했습니다: {error}"))?;
+        *sidecar
+            .child
+            .lock()
+            .map_err(|_| "서버 프로세스 잠금이 손상되었습니다.".to_string())? = Some(child);
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (app, sidecar);
+    }
+    Ok(())
+}
+
+fn stop_server_sidecar(sidecar: &ServerSidecar) {
+    if let Ok(mut guard) = sidecar.child.lock() {
+        if let Some(child) = guard.as_mut() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        guard.take();
+    }
 }
 
 fn describe_port_type(port_type: &SerialPortType) -> String {
@@ -323,8 +370,15 @@ fn serial_connection_active(connection: State<'_, SerialConnection>) -> Result<b
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(SerialConnection::default())
+        .manage(ServerSidecar::default())
+        .setup(|app| {
+            let sidecar = app.state::<ServerSidecar>();
+            start_server_sidecar(app.handle(), sidecar.inner())
+                .map_err(std::io::Error::other)?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             select_native_file,
             save_processed_file,
@@ -334,6 +388,13 @@ pub fn run() {
             write_serial_command,
             serial_connection_active
         ])
-        .run(tauri::generate_context!())
-        .expect("AKFES 데스크톱 애플리케이션을 실행하지 못했습니다.");
+        .build(tauri::generate_context!())
+        .expect("AKFES 데스크톱 애플리케이션을 빌드하지 못했습니다.");
+
+    app.run(|app_handle, event| {
+        if matches!(event, RunEvent::Exit) {
+            let sidecar = app_handle.state::<ServerSidecar>();
+            stop_server_sidecar(sidecar.inner());
+        }
+    });
 }
