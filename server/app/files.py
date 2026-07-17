@@ -4,7 +4,7 @@ from io import BytesIO
 from typing import Annotated
 from urllib.parse import quote, unquote
 
-from fastapi import APIRouter, Header, HTTPException, Request, status
+from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
