@@ -21,6 +21,13 @@ interface SessionResponse {
   device_id: string | null;
 }
 
+interface LogoutResponse {
+  logged_out: boolean;
+  session_id: number;
+  revoked_at: number;
+  deleted_challenges: number;
+}
+
 const apiUrlStorageKey = "akfes-v2-api-url";
 const deviceIdStorageKey = "akfes-v2-device-id";
 const sessionStorageKey = "akfes-v2-auth-session";
@@ -145,4 +152,18 @@ export async function verifySession(apiUrl: string, session: AuthSession): Promi
     licenseId: payload.license_id,
     sessionExpiresAt: payload.session_expires_at,
   };
+}
+
+export async function logoutSession(apiUrl: string, session: AuthSession): Promise<LogoutResponse> {
+  const response = await fetch(`${normalizeApiUrl(apiUrl)}/api/v2/auth/logout`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${session.sessionToken}`,
+      "X-AKFES-Device-ID": session.deviceId,
+    },
+  });
+  if (!response.ok) throw await responseError(response);
+  const payload = await response.json() as LogoutResponse;
+  if (!payload.logged_out) throw new Error("서버가 로그아웃 완료를 확인하지 않았습니다.");
+  return payload;
 }
