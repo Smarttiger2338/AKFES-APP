@@ -13,6 +13,7 @@ import {
   verifySession,
 } from "./auth";
 import type { AuthSession } from "./auth";
+import { AuthContext } from "./AuthContext";
 
 interface AuthGateProps {
   children: ReactNode;
@@ -111,19 +112,21 @@ export default function AuthGate({ children }: AuthGateProps) {
 
   if (authState === "signed-in" && session) {
     return (
-      <div className="authenticated-shell">
-        <div className="auth-session-bar">
-          <div>
-            <strong>라이선스 #{session.licenseId}</strong>
-            <span>세션 만료 {formatUnixTime(session.sessionExpiresAt)}</span>
+      <AuthContext.Provider value={{ apiUrl, session, logout }}>
+        <div className="authenticated-shell">
+          <div className="auth-session-bar">
+            <div>
+              <strong>라이선스 #{session.licenseId}</strong>
+              <span>세션 만료 {formatUnixTime(session.sessionExpiresAt)}</span>
+            </div>
+            <div>
+              <span className="auth-device-label" title={session.deviceId}>장치 바인딩 완료</span>
+              <button className="secondary" onClick={logout}>로그아웃</button>
+            </div>
           </div>
-          <div>
-            <span className="auth-device-label" title={session.deviceId}>장치 바인딩 완료</span>
-            <button className="secondary" onClick={logout}>로그아웃</button>
-          </div>
+          {children}
         </div>
-        {children}
-      </div>
+      </AuthContext.Provider>
     );
   }
 
