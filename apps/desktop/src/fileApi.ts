@@ -12,14 +12,6 @@ interface ChallengeResponse {
   canonical_version: string;
 }
 
-interface FileOperationResponse {
-  filename: string;
-  data_base64: string;
-  size_bytes: number;
-  algorithm: string;
-  key_derivation: string;
-}
-
 interface NativeSelectedFile {
   filename: string;
   bytes: number[];
@@ -49,32 +41,13 @@ async function responseError(response: Response): Promise<ApiError> {
   }
 }
 
-function bytesToBase64(bytes: Uint8Array): string {
-  const chunkSize = 0x8000;
-  let binary = "";
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    const chunk = bytes.subarray(offset, offset + chunkSize);
-    binary += String.fromCharCode(...chunk);
-  }
-  return btoa(binary);
-}
-
-function base64ToBytes(value: string): Uint8Array {
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
-}
-
 function toHex(bytes: ArrayBuffer): string {
   return Array.from(new Uint8Array(bytes), (value) => value.toString(16).padStart(2, "0")).join("");
 }
 
-async function sha256Hex(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return toHex(digest);
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const copied = new Uint8Array(bytes);
+  return toHex(await crypto.subtle.digest("SHA-256", copied.buffer));
 }
 
 async function calculateSignature(
@@ -82,7 +55,7 @@ async function calculateSignature(
   method: string,
   path: string,
   challenge: string,
-  body: string,
+  body: Uint8Array,
   deviceId: string,
 ): Promise<string> {
   const canonical = [
@@ -120,6 +93,16 @@ async function issueChallenge(apiUrl: string, session: AuthSession): Promise<str
   return payload.challenge;
 }
 
+function decodeHeaderValue(response: Response, name: string, fallback: string): string {
+  const raw = response.headers.get(name);
+  if (!raw) return fallback;
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
 export async function processFile(
   apiUrl: string,
   session: AuthSession,
@@ -127,13 +110,8 @@ export async function processFile(
   file: File,
   password: string,
 ): Promise<ProcessedFile> {
-  const fileBytes = new Uint8Array(await file.arrayBuffer());
-  const path = `/api/v2/files/${mode}`;
-  const body = JSON.stringify({
-    filename: file.name,
-    password,
-    data_base64: bytesToBase64(fileBytes),
-  });
+  const body = new Uint8Array(await file.arrayBuffer());
+  const path = `/api/v2/files/${mode}-binary`;
   const challenge = await issueChallenge(apiUrl, session);
   const signature = await calculateSignature(
     session.sessionToken,
@@ -148,26 +126,28 @@ export async function processFile(
     method: "POST",
     headers: {
       Authorization: `Bearer ${session.sessionToken}`,
-      "Content-Type": "application/json",
+      "Content-Type": "application/octet-stream",
       "X-AKFES-Device-ID": session.deviceId,
       "X-AKFES-Challenge": challenge,
       "X-AKFES-Signature": signature,
+      "X-AKFES-Filename": encodeURIComponent(file.name),
+      "X-AKFES-Password": encodeURIComponent(password),
     },
-    body,
+    body: new Uint8Array(body).buffer,
   });
   if (!response.ok) throw await responseError(response);
 
-  const payload = await response.json() as FileOperationResponse;
-  const bytes = base64ToBytes(payload.data_base64);
-  if (bytes.byteLength !== payload.size_bytes) {
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const declaredSize = Number.parseInt(response.headers.get("X-AKFES-Size") ?? `${bytes.byteLength}`, 10);
+  if (!Number.isFinite(declaredSize) || declaredSize !== bytes.byteLength) {
     throw new Error("서버가 반환한 파일 크기 정보가 실제 데이터와 일치하지 않습니다.");
   }
   return {
-    filename: payload.filename,
+    filename: decodeHeaderValue(response, "X-AKFES-Filename", `${file.name}.${mode === "encrypt" ? "akfes" : "result"}`),
     bytes,
-    sizeBytes: payload.size_bytes,
-    algorithm: payload.algorithm,
-    keyDerivation: payload.key_derivation,
+    sizeBytes: bytes.byteLength,
+    algorithm: response.headers.get("X-AKFES-Algorithm") ?? "AES-256-GCM",
+    keyDerivation: response.headers.get("X-AKFES-Key-Derivation") ?? "PBKDF2-HMAC-SHA256",
   };
 }
 
