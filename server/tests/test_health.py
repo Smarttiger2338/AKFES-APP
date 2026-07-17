@@ -23,6 +23,7 @@ def make_test_settings(tmp_path: Path) -> Settings:
         session_ttl_seconds=900,
         challenge_ttl_seconds=60,
         device_binding_required=True,
+        pbkdf2_iterations=100_000,
     )
 
 
