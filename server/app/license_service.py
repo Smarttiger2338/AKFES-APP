@@ -33,6 +33,10 @@ class LicenseNotFoundError(LicenseError):
     pass
 
 
+class DeviceBindingError(LicenseError):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class IssuedLicense:
     license_key: str
@@ -57,10 +61,12 @@ class LicenseService:
         store: LicenseStore,
         hmac_secret: str,
         session_ttl_seconds: int,
+        device_binding_required: bool,
     ) -> None:
         self.store = store
         self.secret = hmac_secret.encode("utf-8")
         self.session_ttl_seconds = session_ttl_seconds
+        self.device_binding_required = device_binding_required
 
     def digest(self, namespace: str, value: str) -> str:
         payload = f"{namespace}:{value}".encode("utf-8")
@@ -180,6 +186,30 @@ class LicenseService:
         )
         return revoked_at
 
+    def reset_device_binding(
+        self,
+        *,
+        license_id: int,
+        actor: str | None = None,
+        reason: str | None = None,
+        now: int | None = None,
+    ) -> int:
+        reset_at = int(time.time()) if now is None else int(now)
+        normalized_actor = self.normalize_actor(actor)
+        normalized_reason = reason.strip()[:240] if reason and reason.strip() else None
+        reset = self.store.clear_device_binding(license_id=license_id, revoked_at=reset_at)
+        if not reset:
+            raise LicenseNotFoundError("License is missing, revoked, or not device-bound")
+        self.store.record_audit(
+            action="license.device_binding.reset",
+            actor=normalized_actor,
+            target_type="license",
+            target_id=str(license_id),
+            details={"reason": normalized_reason, "reset_at": reset_at},
+            created_at=reset_at,
+        )
+        return reset_at
+
     def list_audit(self, *, limit: int, offset: int) -> list[AuditRecord]:
         return self.store.list_audit(limit=limit, offset=offset)
 
@@ -204,6 +234,33 @@ class LicenseService:
             raise ExpiredLicenseError("License has expired")
 
         normalized_device_id = self.normalize_device_id(device_id)
+        if self.device_binding_required and normalized_device_id is None:
+            raise DeviceBindingError("A device_id is required")
+
+        if normalized_device_id is not None:
+            device_digest = self.digest("device", normalized_device_id)
+            bound_digest = record.bound_device_digest
+            if bound_digest is None:
+                bound_digest = self.store.bind_license_device(
+                    license_id=record.license_id,
+                    device_digest=device_digest,
+                )
+                if bound_digest is None:
+                    raise InvalidLicenseError("License is no longer available")
+                if hmac.compare_digest(bound_digest, device_digest):
+                    self.store.record_audit(
+                        action="license.device_binding.create",
+                        actor="system",
+                        target_type="license",
+                        target_id=str(record.license_id),
+                        details={"bound_at": current_time},
+                        created_at=current_time,
+                    )
+            if not hmac.compare_digest(bound_digest, device_digest):
+                raise DeviceBindingError("License is bound to another device")
+        elif record.bound_device_digest is not None:
+            raise DeviceBindingError("A device_id is required for this license")
+
         session_expires_at = min(
             record.expires_at,
             current_time + self.session_ttl_seconds,
@@ -241,6 +298,8 @@ class LicenseService:
             raise InvalidSessionError("Invalid or expired session")
 
         normalized_device_id = self.normalize_device_id(device_id)
+        if self.device_binding_required and normalized_device_id is None:
+            raise InvalidSessionError("Missing device_id")
         if record.device_id is not None and not hmac.compare_digest(
             record.device_id,
             normalized_device_id or "",
