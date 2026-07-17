@@ -28,5 +28,6 @@ fn write_if_missing(path: &Path, bytes: &[u8]) {
 fn main() {
     write_if_missing(Path::new("icons/icon.png"), PLACEHOLDER_ICON);
     write_if_missing(Path::new("icons/icon.ico"), PLACEHOLDER_ICO);
+    write_if_missing(Path::new("binaries/akfes-server.exe"), b"");
     tauri_build::build()
 }
