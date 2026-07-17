@@ -7,11 +7,28 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 
+const MAX_NATIVE_FILE_BYTES: u64 = 100 * 1024 * 1024;
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SerialPortInfo {
     name: String,
     port_type: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeSelectedFile {
+    filename: String,
+    bytes: Vec<u8>,
+    size_bytes: u64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveProcessedFileResult {
+    status: &'static str,
+    path: Option<String>,
 }
 
 #[derive(Clone, Default)]
@@ -81,18 +98,54 @@ fn safe_filename(filename: &str) -> String {
 }
 
 #[tauri::command]
-fn save_processed_file(filename: String, bytes: Vec<u8>) -> Result<Option<String>, String> {
+fn select_native_file() -> Result<Option<NativeSelectedFile>, String> {
+    let Some(path) = rfd::FileDialog::new().pick_file() else {
+        return Ok(None);
+    };
+    let metadata = std::fs::metadata(&path)
+        .map_err(|error| format!("선택한 파일 정보를 읽지 못했습니다: {error}"))?;
+    if !metadata.is_file() {
+        return Err("일반 파일만 선택할 수 있습니다.".to_string());
+    }
+    if metadata.len() > MAX_NATIVE_FILE_BYTES {
+        return Err("선택한 파일이 100MB 제한을 초과했습니다.".to_string());
+    }
+    let filename = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .map(safe_filename)
+        .ok_or_else(|| "선택한 파일 이름을 읽을 수 없습니다.".to_string())?;
+    let bytes = std::fs::read(&path)
+        .map_err(|error| format!("선택한 파일을 읽지 못했습니다: {error}"))?;
+    Ok(Some(NativeSelectedFile {
+        filename,
+        size_bytes: bytes.len() as u64,
+        bytes,
+    }))
+}
+
+#[tauri::command]
+fn save_processed_file(
+    filename: String,
+    bytes: Vec<u8>,
+) -> Result<SaveProcessedFileResult, String> {
     if bytes.is_empty() {
         return Err("저장할 파일 데이터가 없습니다.".to_string());
     }
     let filename = safe_filename(&filename);
     let selected = rfd::FileDialog::new().set_file_name(&filename).save_file();
     let Some(path) = selected else {
-        return Ok(None);
+        return Ok(SaveProcessedFileResult {
+            status: "cancelled",
+            path: None,
+        });
     };
     std::fs::write(&path, bytes)
         .map_err(|error| format!("결과 파일을 저장하지 못했습니다: {error}"))?;
-    Ok(Some(path.to_string_lossy().into_owned()))
+    Ok(SaveProcessedFileResult {
+        status: "saved",
+        path: Some(path.to_string_lossy().into_owned()),
+    })
 }
 
 #[tauri::command]
@@ -273,6 +326,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(SerialConnection::default())
         .invoke_handler(tauri::generate_handler![
+            select_native_file,
             save_processed_file,
             list_serial_ports,
             connect_serial_port,
