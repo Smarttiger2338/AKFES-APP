@@ -1,0 +1,158 @@
+.auth-gate-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background:
+    radial-gradient(circle at top left, rgba(34, 115, 255, 0.22), transparent 34%),
+    radial-gradient(circle at bottom right, rgba(44, 167, 255, 0.15), transparent 32%),
+    #06101f;
+}
+
+.auth-gate-card {
+  width: min(560px, 100%);
+  padding: 34px;
+  border: 1px solid rgba(132, 179, 255, 0.2);
+  border-radius: 24px;
+  background: rgba(9, 24, 45, 0.92);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.36);
+  backdrop-filter: blur(20px);
+}
+
+.auth-gate-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 34px;
+}
+
+.auth-gate-brand > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-gate-brand small,
+.auth-session-bar span,
+.auth-device-box small {
+  color: rgba(216, 230, 255, 0.62);
+}
+
+.auth-gate-copy h1 {
+  margin: 8px 0 10px;
+  font-size: clamp(2rem, 6vw, 3.1rem);
+}
+
+.auth-gate-copy p {
+  margin: 0 0 28px;
+  color: rgba(224, 235, 255, 0.72);
+  line-height: 1.65;
+}
+
+.auth-gate-form {
+  display: grid;
+  gap: 12px;
+}
+
+.auth-gate-form label {
+  margin-top: 5px;
+  font-size: 0.9rem;
+  color: rgba(226, 237, 255, 0.84);
+}
+
+.auth-gate-form input {
+  width: 100%;
+}
+
+.auth-device-box {
+  display: grid;
+  gap: 7px;
+  margin-top: 6px;
+  padding: 14px;
+  border: 1px solid rgba(117, 169, 255, 0.16);
+  border-radius: 14px;
+  background: rgba(4, 14, 28, 0.56);
+}
+
+.auth-device-box code {
+  overflow-wrap: anywhere;
+  color: #9dc5ff;
+  font-size: 0.78rem;
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.auth-message {
+  margin-top: 18px;
+}
+
+.authenticated-shell {
+  min-height: 100vh;
+}
+
+.auth-session-bar {
+  position: fixed;
+  z-index: 20;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(720px, calc(100% - 220px));
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 10px 7px 15px;
+  border: 1px solid rgba(114, 168, 255, 0.18);
+  border-radius: 14px;
+  background: rgba(6, 18, 35, 0.88);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(16px);
+}
+
+.auth-session-bar > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.auth-session-bar strong {
+  white-space: nowrap;
+}
+
+.auth-session-bar span {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.auth-device-label {
+  color: #8ee5b5 !important;
+}
+
+.auth-session-bar button {
+  padding: 7px 12px;
+}
+
+@media (max-width: 760px) {
+  .auth-gate-shell {
+    padding: 16px;
+  }
+
+  .auth-gate-card {
+    padding: 24px;
+  }
+
+  .auth-session-bar {
+    position: static;
+    transform: none;
+    width: calc(100% - 24px);
+    margin: 10px auto -2px;
+  }
+
+  .auth-session-bar > div:first-child span {
+    display: none;
+  }
+}
