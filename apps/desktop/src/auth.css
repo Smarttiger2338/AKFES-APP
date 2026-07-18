@@ -1,5 +1,5 @@
 .auth-gate-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: 32px;
@@ -11,6 +11,7 @@
 
 .auth-gate-card {
   width: min(560px, 100%);
+  min-width: 0;
   padding: 34px;
   border: 1px solid rgba(132, 179, 255, 0.2);
   border-radius: 24px;
@@ -89,7 +90,7 @@
 }
 
 .authenticated-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .auth-session-bar {
@@ -154,5 +155,24 @@
 
   .auth-session-bar > div:first-child span {
     display: none;
+  }
+}
+
+@media (max-height: 620px) {
+  .auth-gate-shell {
+    align-items: start;
+    padding: 16px;
+  }
+
+  .auth-gate-card {
+    padding: 22px;
+  }
+
+  .auth-gate-brand {
+    margin-bottom: 20px;
+  }
+
+  .auth-gate-copy p {
+    margin-bottom: 18px;
   }
 }

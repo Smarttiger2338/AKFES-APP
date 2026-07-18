@@ -119,6 +119,7 @@
   border: 1px solid rgba(119, 169, 234, 0.16);
   border-radius: 14px;
   background: rgba(5, 17, 33, 0.55);
+  min-width: 0;
 }
 
 .mapping-panel span,
@@ -134,6 +135,7 @@
 
 .mapping-panel strong {
   font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .led-tests .success-test {
@@ -147,8 +149,8 @@
 }
 
 .serial-log {
-  min-height: 118px;
-  max-height: 148px;
+  min-height: 96px;
+  max-height: min(148px, 28dvh);
   margin: 0;
   padding: 13px 14px;
   overflow: auto;

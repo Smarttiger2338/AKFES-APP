@@ -14,20 +14,33 @@
 
 * {
   box-sizing: border-box;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(104, 167, 255, 0.42) rgba(5, 14, 27, 0.36);
 }
 
 *::-webkit-scrollbar {
-  display: none;
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(104, 167, 255, 0.42);
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(5, 14, 27, 0.36);
 }
 
 html,
 body,
 #root {
   width: 100%;
-  height: 100%;
+  min-height: 100%;
   margin: 0;
-  overflow: hidden;
+  overflow: auto;
 }
 
 button,
@@ -41,7 +54,10 @@ button {
 }
 
 .app-shell {
-  height: 100%;
+  height: 100dvh;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   background:
     radial-gradient(circle at 80% 10%, rgba(11, 99, 246, 0.22), transparent 32%),
@@ -51,6 +67,7 @@ button {
 
 .titlebar {
   height: 56px;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -116,7 +133,9 @@ button {
 }
 
 .workspace {
-  height: calc(100% - 56px);
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
   overflow: auto;
   padding: 30px clamp(24px, 4vw, 56px) 36px;
 }
@@ -127,6 +146,7 @@ button {
   justify-content: space-between;
   gap: 28px;
   margin-bottom: 24px;
+  min-width: 0;
 }
 
 .eyebrow {
@@ -164,6 +184,7 @@ button {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 18px;
+  min-width: 0;
 }
 
 .stepper button {
@@ -231,6 +252,14 @@ button {
   gap: 46px;
   align-items: center;
   padding: clamp(28px, 5vw, 62px);
+  min-width: 0;
+}
+
+.stage-grid > *,
+.form-card,
+.panel-footer,
+.notice {
+  min-width: 0;
 }
 
 .section-number {
@@ -262,6 +291,7 @@ button {
   border: 1px solid rgba(116, 165, 229, 0.17);
   border-radius: 18px;
   background: var(--surface-2);
+  overflow: hidden;
 }
 
 .form-card label:not(.file-picker) {
@@ -442,6 +472,10 @@ button:disabled {
   background: rgba(4, 14, 27, 0.36);
 }
 
+.notice {
+  overflow-wrap: anywhere;
+}
+
 .panel-footer > div {
   display: flex;
   gap: 8px;
@@ -489,6 +523,79 @@ button:disabled {
 
   .panel-footer > div {
     justify-content: flex-end;
+  }
+}
+
+@media (max-width: 640px) {
+  .titlebar {
+    padding-left: 12px;
+  }
+
+  .brand {
+    gap: 8px;
+  }
+
+  .brand small {
+    display: none;
+  }
+
+  .window-actions button {
+    width: 42px;
+  }
+
+  .workspace {
+    padding: 16px 12px 20px;
+  }
+
+  .hero h1 {
+    font-size: 26px;
+  }
+
+  .stepper {
+    grid-template-columns: 1fr;
+  }
+
+  .stepper button {
+    min-height: 46px;
+    justify-content: flex-start;
+    padding-inline: 12px;
+  }
+
+  .stage-panel {
+    min-height: 0;
+  }
+
+  .stage-grid {
+    padding: 22px 16px;
+  }
+
+  .panel-footer > div,
+  .panel-footer button {
+    width: 100%;
+  }
+}
+
+@media (max-height: 620px) {
+  .workspace {
+    padding-top: 16px;
+    padding-bottom: 20px;
+  }
+
+  .hero {
+    margin-bottom: 16px;
+  }
+
+  .hero h1 {
+    margin-bottom: 6px;
+    font-size: 28px;
+  }
+
+  .stepper button {
+    min-height: 46px;
+  }
+
+  .stage-panel {
+    min-height: 0;
   }
 }
 
