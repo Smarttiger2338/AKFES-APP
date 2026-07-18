@@ -334,6 +334,15 @@ fn record_startup_error(sidecar: &ServerSidecar, message: String) {
     }
 }
 
+fn clear_startup_error(sidecar: &ServerSidecar) {
+    if let Ok(mut guard) = sidecar.startup_error.lock() {
+        *guard = None;
+    }
+    if let Ok(directory) = app_data_directory() {
+        let _ = fs::remove_file(directory.join("license-manager-startup-error.txt"));
+    }
+}
+
 fn start_server_sidecar(app: &AppHandle, sidecar: &ServerSidecar) {
     #[cfg(target_os = "windows")]
     {
@@ -369,6 +378,7 @@ fn start_server_sidecar(app: &AppHandle, sidecar: &ServerSidecar) {
                 "server_start",
                 &format!("Started local server on port {port}."),
             );
+            clear_startup_error(sidecar);
             Ok(())
         })();
 
