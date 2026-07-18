@@ -41,7 +41,7 @@ if ($Mode -ne "web" -or -not $SkipTests) {
 }
 if ($Mode -eq "all" -or $Mode -eq "installer") {
     Require-Command "cargo" "Install Rust and the Tauri Windows build tools."
-    Require-Command "link" "Install Visual Studio Build Tools with the Desktop development with C++ workload."
+    Require-Command "link" "Install Visual Studio Build Tools as Administrator with the Desktop development with C++ workload."
 }
 
 $version = Get-JsonVersion (Join-Path $rootDir "package.json")
