@@ -29,6 +29,36 @@ interface IssuedLicense {
   expires_at: number;
 }
 
+interface AdminSecurityStatus {
+  pin_set: boolean;
+  config_protected: boolean;
+}
+
+interface LocalServerStatus {
+  running: boolean;
+  owned_by_admin_app: boolean;
+  config_protected: boolean;
+  config_path: string;
+  database_path: string;
+  backup_count: number;
+  latest_backup_path: string | null;
+  startup_error: string | null;
+}
+
+interface BackupResult {
+  path: string;
+}
+
+interface UpdateStatus {
+  current_version: string;
+  latest_version: string | null;
+  update_available: boolean;
+  release_name: string | null;
+  release_url: string | null;
+  published_at: string | null;
+  error: string | null;
+}
+
 const formatTime = (timestamp: number | null) =>
   timestamp ? new Date(timestamp * 1000).toLocaleString("ko-KR") : "-";
 
@@ -41,7 +71,13 @@ function App() {
   const [licenses, setLicenses] = useState<LicenseSummary[]>([]);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [issued, setIssued] = useState<IssuedLicense | null>(null);
-  const [notice, setNotice] = useState("로컬 관리자 토큰을 불러오는 중입니다.");
+  const [security, setSecurity] = useState<AdminSecurityStatus | null>(null);
+  const [unlocked, setUnlocked] = useState(false);
+  const [pin, setPin] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [serverStatus, setServerStatus] = useState<LocalServerStatus | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
+  const [notice, setNotice] = useState("관리자 보안 상태를 확인하는 중입니다.");
   const [busy, setBusy] = useState(false);
 
   const headers = useMemo(
@@ -65,13 +101,25 @@ function App() {
     return response.json() as Promise<T>;
   };
 
+  const loadServerStatus = async () => {
+    const status = await invoke<LocalServerStatus>("get_local_server_status");
+    setServerStatus(status);
+    return status;
+  };
+
+  const loadAdminToken = async () => {
+    const token = await invoke<string>("load_local_admin_token");
+    setAdminToken(token);
+  };
+
   const refresh = async () => {
-    if (!adminToken) return;
+    if (!adminToken || !unlocked) return;
     setBusy(true);
     try {
       const [licenseRows, auditRows] = await Promise.all([
         api<LicenseSummary[]>("/api/v2/admin/licenses?limit=200"),
         api<AuditEntry[]>("/api/v2/admin/audit?limit=100"),
+        loadServerStatus(),
       ]);
       setLicenses(licenseRows);
       setAudit(auditRows);
@@ -84,17 +132,59 @@ function App() {
   };
 
   useEffect(() => {
-    void invoke<string>("load_local_admin_token")
-      .then((token) => {
-        setAdminToken(token);
-        setNotice("로컬 관리자 토큰을 불러왔습니다.");
+    void Promise.all([
+      invoke<AdminSecurityStatus>("get_admin_security_status"),
+      loadServerStatus(),
+    ])
+      .then(([status]) => {
+        setSecurity(status);
+        if (!status.pin_set) {
+          setUnlocked(true);
+          setNotice("처음 사용 전 관리자 PIN을 설정하세요.");
+          void loadAdminToken();
+        } else {
+          setNotice("관리자 PIN을 입력하세요.");
+        }
       })
-      .catch(() => setNotice("토큰을 직접 입력하거나 AKFES를 한 번 실행하세요."));
+      .catch((error) => setNotice(`초기화 실패: ${String(error)}`));
   }, []);
 
   useEffect(() => {
-    if (adminToken) void refresh();
-  }, [adminToken]);
+    if (adminToken && unlocked) void refresh();
+  }, [adminToken, unlocked]);
+
+  const unlockWithPin = async () => {
+    setBusy(true);
+    try {
+      const ok = await invoke<boolean>("verify_admin_pin", { pin });
+      if (!ok) {
+        setNotice("PIN이 올바르지 않습니다.");
+        return;
+      }
+      setUnlocked(true);
+      setPin("");
+      await loadAdminToken();
+      setNotice("관리자 패널 잠금이 해제되었습니다.");
+    } catch (error) {
+      setNotice(`PIN 확인 실패: ${String(error)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveNewPin = async () => {
+    setBusy(true);
+    try {
+      const status = await invoke<AdminSecurityStatus>("set_admin_pin", { pin: newPin });
+      setSecurity(status);
+      setNewPin("");
+      setNotice("관리자 PIN을 저장했습니다.");
+    } catch (error) {
+      setNotice(`PIN 저장 실패: ${String(error)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const issueLicense = async () => {
     setBusy(true);
@@ -158,11 +248,76 @@ function App() {
     }
   };
 
+  const backupDatabase = async () => {
+    setBusy(true);
+    try {
+      const result = await invoke<BackupResult>("backup_local_database");
+      setNotice(`백업을 만들었습니다: ${result.path}`);
+      await loadServerStatus();
+    } catch (error) {
+      setNotice(`백업 실패: ${String(error)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const restoreLatestBackup = async () => {
+    const confirmed = window.confirm(
+      "최신 백업으로 복원할까요?\n\n현재 데이터베이스는 복원 전에 자동 백업됩니다.",
+    );
+    if (!confirmed) return;
+
+    setBusy(true);
+    try {
+      const result = await invoke<BackupResult>("restore_latest_database_backup");
+      setNotice(`최신 백업을 복원했습니다: ${result.path}`);
+      await refresh();
+    } catch (error) {
+      setNotice(`복원 실패: ${String(error)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const checkUpdates = async () => {
+    setBusy(true);
+    try {
+      const status = await invoke<UpdateStatus>("check_for_updates");
+      setUpdateStatus(status);
+      if (status.error) {
+        setNotice(`업데이트 확인 실패: ${status.error}`);
+      } else if (status.update_available) {
+        setNotice(`새 버전이 있습니다: ${status.latest_version}`);
+      } else {
+        setNotice("현재 버전이 최신입니다.");
+      }
+    } catch (error) {
+      setNotice(`업데이트 확인 실패: ${String(error)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!unlocked) {
+    return (
+      <main className="shell lock-shell">
+        <section className="card lock-card">
+          <span>AKFES</span>
+          <h1>관리자 잠금</h1>
+          <label>관리자 PIN<input type="password" value={pin} onChange={(e) => setPin(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void unlockWithPin(); }} autoFocus /></label>
+          <button className="primary" onClick={() => void unlockWithPin()} disabled={busy || !pin}>잠금 해제</button>
+          <footer>{notice}</footer>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="shell">
       <header>
         <div><span>AKFES</span><h1>License Manager</h1></div>
         <div className="header-actions">
+          <button onClick={() => void checkUpdates()} disabled={busy}>업데이트 확인</button>
           <button onClick={() => void rotateAdminToken()} disabled={busy || !adminToken}>관리자 토큰 재생성</button>
           <button onClick={() => void refresh()} disabled={busy || !adminToken}>새로고침</button>
         </div>
@@ -188,6 +343,29 @@ function App() {
           <strong>{licenses.filter((x) => x.status === "active").length}</strong><span>활성 라이선스</span>
           <strong>{licenses.filter((x) => x.device_bound).length}</strong><span>장치 바인딩</span>
           <strong>{licenses.reduce((sum, x) => sum + x.active_session_count, 0)}</strong><span>활성 세션</span>
+        </article>
+      </section>
+
+      <section className="tools">
+        <article className="card status-card">
+          <h2>서버 상태</h2>
+          <p><strong>{serverStatus?.running ? "실행 중" : "중지됨"}</strong><span>{serverStatus?.owned_by_admin_app ? "관리자 앱이 실행한 서버" : "외부 서버 또는 대기 중"}</span></p>
+          <p><strong>{serverStatus?.config_protected ? "보호됨" : "확인 필요"}</strong><span>로컬 설정 암호화</span></p>
+          <p><strong>{serverStatus?.backup_count ?? 0}</strong><span>저장된 백업</span></p>
+          {serverStatus?.startup_error && <code>{serverStatus.startup_error}</code>}
+        </article>
+
+        <article className="card admin-tools">
+          <h2>운영 도구</h2>
+          <div className="tool-row">
+            <button onClick={() => void backupDatabase()} disabled={busy}>백업 생성</button>
+            <button onClick={() => void restoreLatestBackup()} disabled={busy || !serverStatus?.backup_count}>최신 백업 복원</button>
+          </div>
+          <div className="tool-row">
+            <input type="password" value={newPin} onChange={(e) => setNewPin(e.target.value)} placeholder={security?.pin_set ? "새 관리자 PIN" : "관리자 PIN 설정"} />
+            <button onClick={() => void saveNewPin()} disabled={busy || newPin.trim().length < 4}>{security?.pin_set ? "PIN 변경" : "PIN 설정"}</button>
+          </div>
+          {updateStatus && <code>{updateStatus.update_available ? `${updateStatus.latest_version} 업데이트 가능` : `현재 ${updateStatus.current_version}`}</code>}
         </article>
       </section>
 

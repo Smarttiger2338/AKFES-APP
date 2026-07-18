@@ -9,6 +9,9 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 button.primary { background: #2563eb; border-color: #3b82f6; }
 button.danger { border-color: #7f1d1d; color: #fecaca; margin-left: 6px; }
 .shell { width: min(1380px, 100%); margin: 0 auto; padding: 28px; }
+.lock-shell { min-height: 100vh; display: grid; place-items: center; }
+.lock-card { width: min(420px, 100%); display: grid; gap: 14px; }
+.lock-card span { color: #60a5fa; font-weight: 800; letter-spacing: .16em; }
 header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
 header div { display: flex; align-items: baseline; gap: 12px; }
 .header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
@@ -30,6 +33,12 @@ input { width: 100%; border: 1px solid #294663; background: #07111f; color: #eff
 .stats h2 { grid-column: 1 / -1; }
 .stats strong { font-size: 24px; color: #60a5fa; }
 .stats span { color: #a7bfd8; }
+.tools { display: grid; grid-template-columns: .9fr 1.1fr; gap: 16px; margin-bottom: 16px; }
+.status-card, .admin-tools { display: grid; gap: 12px; align-content: start; }
+.status-card p { display: grid; grid-template-columns: 110px 1fr; gap: 10px; margin: 0; }
+.status-card p strong { color: #60a5fa; }
+.status-card p span, .admin-tools code { color: #a7bfd8; overflow-wrap: anywhere; }
+.tool-row { display: grid; grid-template-columns: 1fr auto; gap: 9px; align-items: center; }
 .table-card { margin-bottom: 16px; }
 .table-wrap { overflow: auto; max-height: 360px; }
 table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px; }
@@ -41,5 +50,5 @@ td code { white-space: pre-wrap; word-break: break-all; color: #bfdbfe; }
 .badge.expired { background: #713f12; color: #fde68a; }
 .badge.revoked { background: #7f1d1d; color: #fecaca; }
 footer { min-height: 24px; color: #bfdbfe; padding: 4px 2px; overflow-wrap: anywhere; }
-@media (max-width: 1050px) { .connection, .grid { grid-template-columns: 1fr; } .issue { grid-template-columns: 1fr; } .issued { grid-column: 1; } }
-@media (max-width: 760px) { .shell { padding: 16px; } header { align-items: stretch; flex-direction: column; gap: 12px; } header div { display: block; } .header-actions { display: flex; justify-content: stretch; } .header-actions button { width: 100%; } .issued { grid-template-columns: 1fr; } button.danger { margin-left: 0; margin-top: 6px; } }
+@media (max-width: 1050px) { .connection, .grid, .tools { grid-template-columns: 1fr; } .issue { grid-template-columns: 1fr; } .issued { grid-column: 1; } }
+@media (max-width: 760px) { .shell { padding: 16px; } header { align-items: stretch; flex-direction: column; gap: 12px; } header div { display: block; } .header-actions { display: flex; justify-content: stretch; } .header-actions button { width: 100%; } .issued, .tool-row { grid-template-columns: 1fr; } .status-card p { grid-template-columns: 1fr; gap: 3px; } button.danger { margin-left: 0; margin-top: 6px; } }
