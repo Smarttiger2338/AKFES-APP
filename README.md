@@ -83,6 +83,19 @@ npm install
 npm run admin:dev
 ```
 
+## 로컬 빌드 원클릭 실행
+
+저장소 루트의 `BUILD_AKFES.bat`을 실행하면 로컬 빌드에 필요한 확인과 빌드 단계를 자동으로 처리합니다.
+
+```powershell
+BUILD_AKFES.bat -Mode web -SkipTests
+BUILD_AKFES.bat -Mode server
+BUILD_AKFES.bat -Mode installer
+BUILD_AKFES.bat
+```
+
+`-Mode web`은 사용자 앱과 관리자 앱의 React·TypeScript·Vite 빌드만 확인합니다. `-Mode server`는 FastAPI 사이드카 실행 파일을 만들고 두 Tauri 앱에 복사합니다. `-Mode installer`는 서버 실행 파일, Rust 검사, 사용자·관리자 NSIS 설치 파일 생성을 진행하고 결과물을 `release-local/`에 모읍니다. 인자를 생략하면 `-Mode all`로 실행됩니다.
+
 ## 개발 환경 원클릭 실행
 
 저장소 루트의 `START_AKFES.bat`을 실행하면 Python·Node.js·Rust 확인, 가상환경과 의존성 설치, FastAPI 상태 확인, 사용자용 Tauri 개발 앱 실행을 자동으로 처리합니다.
