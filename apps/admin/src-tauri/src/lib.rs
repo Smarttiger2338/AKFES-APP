@@ -863,6 +863,7 @@ fn get_startup_error(sidecar: State<'_, ServerSidecar>) -> Option<String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(ServerSidecar::default())
         .setup(|app| {
             let sidecar = app.state::<ServerSidecar>();

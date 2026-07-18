@@ -178,9 +178,39 @@ jobs:
           New-Item -ItemType Directory -Path release -Force | Out-Null
           $desktop = Get-ChildItem "apps/desktop/src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1
           $admin = Get-ChildItem "apps/admin/src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1
-          Copy-Item $desktop.FullName "release/AKFES-${{ github.ref_name }}-Windows-x64-Setup.exe"
-          Copy-Item $admin.FullName "release/AKFES-License-Manager-${{ github.ref_name }}-Windows-x64-Setup.exe"
+          $desktopName = "AKFES-${{ github.ref_name }}-Windows-x64-Setup.exe"
+          $adminName = "AKFES-License-Manager-${{ github.ref_name }}-Windows-x64-Setup.exe"
+          Copy-Item $desktop.FullName "release/$desktopName"
+          Copy-Item $admin.FullName "release/$adminName"
+          Copy-Item "$($desktop.FullName).sig" "release/$desktopName.sig"
+          Copy-Item "$($admin.FullName).sig" "release/$adminName.sig"
           Copy-Item "dist/akfes-server.exe" "release/akfes-server-${{ github.ref_name }}-Windows-x64.exe"
+          $releaseBase = "https://github.com/Smarttiger2338/AKFES-APP/releases/download/${{ github.ref_name }}"
+          $publishedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          $desktopManifest = @{
+            version = "${{ github.ref_name }}".TrimStart("v")
+            notes = "AKFES ${{ github.ref_name }}"
+            pub_date = $publishedAt
+            platforms = @{
+              "windows-x86_64" = @{
+                signature = (Get-Content "release/$desktopName.sig" -Raw).Trim()
+                url = "$releaseBase/$desktopName"
+              }
+            }
+          }
+          $adminManifest = @{
+            version = "${{ github.ref_name }}".TrimStart("v")
+            notes = "AKFES License Manager ${{ github.ref_name }}"
+            pub_date = $publishedAt
+            platforms = @{
+              "windows-x86_64" = @{
+                signature = (Get-Content "release/$adminName.sig" -Raw).Trim()
+                url = "$releaseBase/$adminName"
+              }
+            }
+          }
+          $desktopManifest | ConvertTo-Json -Depth 5 | Set-Content "release/latest-desktop.json" -Encoding UTF8
+          $adminManifest | ConvertTo-Json -Depth 5 | Set-Content "release/latest-admin.json" -Encoding UTF8
           Get-ChildItem release/* | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
             "$hash  $($_.Name)" | Add-Content "release/SHA256SUMS.txt"

@@ -37,5 +37,16 @@
         "installMode": "currentUser"
       }
     }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY1NzZCN0Y3Mjg3MTM3N0YKUldSL04zRW85N2QyWld5Q21OK2ZGUFB6OFp0ZTR1b00ydS9ueFovWFRWRXF6a0FLcUN2QjlZU20K",
+      "endpoints": [
+        "https://github.com/Smarttiger2338/AKFES-APP/releases/latest/download/latest-admin.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

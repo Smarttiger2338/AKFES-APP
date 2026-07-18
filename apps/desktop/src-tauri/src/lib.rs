@@ -409,6 +409,7 @@ fn get_local_server_url(sidecar: State<'_, ServerSidecar>) -> String {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(SerialConnection::default())
         .manage(ServerSidecar::default())
         .setup(|app| {

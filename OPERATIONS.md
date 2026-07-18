@@ -67,9 +67,22 @@ in-app installation also requires:
 
 - the official updater plugin
 - a Tauri updater public key in `plugins.updater.pubkey`
-- a HTTPS endpoint, such as a GitHub Release `latest.json`
+- HTTPS endpoints, such as GitHub Release JSON manifests
 - release signing with `TAURI_SIGNING_PRIVATE_KEY`
 
-The License Manager currently checks the latest GitHub Release and reports whether a newer version
-exists. Do not add a fake updater public key; generate and publish the real key before enabling
-automatic installation.
+The public updater key is configured in both Tauri app configs. The release workflow publishes two
+static updater manifests:
+
+```text
+latest-desktop.json
+latest-admin.json
+```
+
+Before creating a release tag, add these GitHub Actions secrets:
+
+```text
+TAURI_SIGNING_PRIVATE_KEY
+TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+```
+
+Do not commit the private key. Only the `.pub` public key belongs in source control.

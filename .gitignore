@@ -3,7 +3,9 @@ build/
 dist/
 .vite/
 apps/*/src-tauri/target/
-apps/desktop/src-tauri/gen/
+apps/*/src-tauri/gen/
+apps/*/src-tauri/icons/icon.ico
+apps/*/src-tauri/icons/icon.png
 apps/*/src-tauri/binaries/*.exe
 *.spec
 rustup-init.exe
