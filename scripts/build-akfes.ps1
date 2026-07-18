@@ -24,10 +24,86 @@ function Require-Command([string]$Name, [string]$InstallHint) {
     }
 }
 
+function Import-MsvcEnvironment {
+    if (Get-Command "link" -ErrorAction SilentlyContinue) {
+        return
+    }
+
+    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (-not (Test-Path $vswhere)) {
+        return
+    }
+
+    $installPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    if (-not $installPath) {
+        return
+    }
+
+    $vcvars = Join-Path $installPath "VC\Auxiliary\Build\vcvars64.bat"
+    if (-not (Test-Path $vcvars)) {
+        return
+    }
+
+    Step "Loading Visual Studio C++ build environment"
+    $environment = & cmd.exe /d /s /c "`"$vcvars`" >nul && set"
+    foreach ($line in $environment) {
+        $separator = $line.IndexOf("=")
+        if ($separator -le 0) {
+            continue
+        }
+        $name = $line.Substring(0, $separator)
+        $value = $line.Substring($separator + 1)
+        [Environment]::SetEnvironmentVariable($name, $value, "Process")
+    }
+}
+
+function Import-TauriSigningKey {
+    if ($env:TAURI_SIGNING_PRIVATE_KEY) {
+        return
+    }
+
+    $defaultKeyPath = Join-Path $env:USERPROFILE ".tauri\akfes-updater.key"
+    if (Test-Path $defaultKeyPath) {
+        Step "Loading local Tauri updater signing key"
+        $keyContent = (Get-Content -Raw $defaultKeyPath).Trim()
+        $env:TAURI_SIGNING_PRIVATE_KEY = $keyContent
+
+        $decodedKey = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($keyContent))
+        $keyComment = ($decodedKey -split "`r?`n")[0]
+        if ($keyComment -match "encrypted" -and -not $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
+            if ([Console]::IsInputRedirected) {
+                throw "Tauri updater signing key is encrypted. Set TAURI_SIGNING_PRIVATE_KEY_PASSWORD before running this build."
+            }
+
+            $securePassword = Read-Host "Enter Tauri updater signing key password" -AsSecureString
+            $passwordPtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+            try {
+                $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPtr)
+            } finally {
+                [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPtr)
+            }
+        }
+        return
+    }
+
+    throw "Tauri updater signing private key was not found. Set TAURI_SIGNING_PRIVATE_KEY or place the key at $defaultKeyPath."
+}
+
 function Invoke-Checked([scriptblock]$Command) {
     & $Command
     if ($LASTEXITCODE -ne 0) {
         throw "Command failed with exit code $LASTEXITCODE"
+    }
+}
+
+function Invoke-WithLocalAppData([string]$LocalAppDataPath, [scriptblock]$Command) {
+    New-Item -ItemType Directory -Path $LocalAppDataPath -Force | Out-Null
+    $previousLocalAppData = $env:LOCALAPPDATA
+    try {
+        $env:LOCALAPPDATA = $LocalAppDataPath
+        Invoke-Checked $Command
+    } finally {
+        $env:LOCALAPPDATA = $previousLocalAppData
     }
 }
 
@@ -41,7 +117,9 @@ if ($Mode -ne "web" -or -not $SkipTests) {
 }
 if ($Mode -eq "all" -or $Mode -eq "installer") {
     Require-Command "cargo" "Install Rust and the Tauri Windows build tools."
+    Import-MsvcEnvironment
     Require-Command "link" "Install Visual Studio Build Tools as Administrator with the Desktop development with C++ workload."
+    Import-TauriSigningKey
 }
 
 $version = Get-JsonVersion (Join-Path $rootDir "package.json")
@@ -49,6 +127,7 @@ $serverDir = Join-Path $rootDir "server"
 $venvDir = Join-Path $serverDir ".venv"
 $pythonExe = Join-Path $venvDir "Scripts\python.exe"
 $releaseDir = Join-Path $rootDir "release-local"
+$tauriLocalAppDataDir = Join-Path $rootDir ".tauri-localappdata"
 
 if (($Mode -ne "web" -or -not $SkipTests) -and -not (Test-Path $pythonExe)) {
     Step "Creating Python virtual environment"
@@ -113,8 +192,8 @@ if ($Mode -eq "all" -or $Mode -eq "installer") {
     Invoke-Checked { cargo check --manifest-path apps/admin/src-tauri/Cargo.toml }
 
     Step "Building Windows installers"
-    Invoke-Checked { npm run desktop:build }
-    Invoke-Checked { npm run admin:build }
+    Invoke-WithLocalAppData $tauriLocalAppDataDir { npm run desktop:build }
+    Invoke-WithLocalAppData $tauriLocalAppDataDir { npm run admin:build }
 
     Step "Collecting release files"
     New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null

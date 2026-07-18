@@ -2,6 +2,7 @@ node_modules/
 build/
 dist/
 .vite/
+.tauri-localappdata/
 apps/*/src-tauri/target/
 apps/*/src-tauri/gen/
 apps/*/src-tauri/icons/icon.ico
