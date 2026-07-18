@@ -70,9 +70,12 @@ function Import-TauriSigningKey {
 
         $decodedKey = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($keyContent))
         $keyComment = ($decodedKey -split "`r?`n")[0]
-        if ($keyComment -match "encrypted" -and -not $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
+        if ($keyComment -match "encrypted") {
             if ([Console]::IsInputRedirected) {
-                throw "Tauri updater signing key is encrypted. Set TAURI_SIGNING_PRIVATE_KEY_PASSWORD before running this build."
+                if (-not $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
+                    throw "Tauri updater signing key is encrypted. Set TAURI_SIGNING_PRIVATE_KEY_PASSWORD before running this build."
+                }
+                return
             }
 
             $securePassword = Read-Host "Enter Tauri updater signing key password" -AsSecureString
