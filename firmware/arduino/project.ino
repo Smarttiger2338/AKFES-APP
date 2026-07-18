@@ -7,11 +7,13 @@ const byte RED_LED_PIN = 11;
 
 const unsigned long LED_ON_TIME = 1000;
 const unsigned long debounceDelay = 180;
+const unsigned long READY_INTERVAL = 2000;
 
 String lastPair = "";
 String serialCommand = "";
 
 unsigned long lastReportTime = 0;
+unsigned long lastReadyTime = 0;
 unsigned long greenLedOffTime = 0;
 unsigned long redLedOffTime = 0;
 
@@ -88,10 +90,17 @@ void updateLeds() {
   }
 }
 
+void sendReady() {
+  Serial.println("READY MATRIX LED FINAL");
+  lastReadyTime = millis();
+}
+
 void handleCommand(String cmd) {
   cmd.trim();
 
-  if (cmd == "SUCCESS") {
+  if (cmd == "PING" || cmd == "HELLO") {
+    sendReady();
+  } else if (cmd == "SUCCESS") {
     showSuccessLed();
     Serial.println("LED:GREEN");
   } else if (cmd == "FAIL") {
@@ -121,7 +130,7 @@ void readSerialCommands() {
 
 void setup() {
   Serial.begin(9600);
-  delay(1000);
+  delay(1200);
 
   pinMode(GREEN_LED_PIN, OUTPUT);
   pinMode(RED_LED_PIN, OUTPUT);
@@ -130,16 +139,19 @@ void setup() {
   digitalWrite(RED_LED_PIN, LOW);
 
   setAllInputPullup();
-
-  Serial.println("READY MATRIX LED FINAL");
+  sendReady();
 }
 
 void loop() {
   readSerialCommands();
   updateLeds();
 
-  String pair = scanPressedPair();
   unsigned long now = millis();
+  if (now - lastReadyTime >= READY_INTERVAL) {
+    sendReady();
+  }
+
+  String pair = scanPressedPair();
 
   if (pair != "") {
     if (pair != lastPair && now - lastReportTime > debounceDelay) {
