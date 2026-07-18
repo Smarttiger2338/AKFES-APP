@@ -1,0 +1,59 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "AKFES License Manager",
+  "version": "2.0.0",
+  "identifier": "io.github.smarttiger2338.akfes.admin",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5174",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "AKFES License Manager",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 720,
+        "minHeight": 480,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:* https://*; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "binaries/akfes-server.exe": "akfes-server.exe"
+    },
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "installMode": "currentUser"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk1RThCODdBOTJCQ0ZGNDMKUldSRC83eVNlcmpvbFp1cVQyallKZEVzZWgySjdnYjB3cm1qVDdOMXNhbU4rL2MyUnNobGJoWTIK",
+      "endpoints": [
+        "https://github.com/Smarttiger2338/AKFES-APP/releases/latest/download/latest-admin.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

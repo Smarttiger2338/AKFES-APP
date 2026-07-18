@@ -1,0 +1,54 @@
+:root { font-family: Inter, Pretendard, system-ui, sans-serif; color: #dbeafe; background: #07111f; }
+* { box-sizing: border-box; }
+html, body, #root { width: 100%; min-height: 100%; }
+body { margin: 0; min-width: 0; overflow: auto; background: radial-gradient(circle at top, #10284a 0, #07111f 48%); }
+button, input { font: inherit; }
+button { border: 1px solid #34506f; background: #12243a; color: #dbeafe; border-radius: 9px; padding: 9px 13px; cursor: pointer; }
+button:hover:not(:disabled) { background: #193653; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.primary { background: #2563eb; border-color: #3b82f6; }
+button.danger { border-color: #7f1d1d; color: #fecaca; margin-left: 6px; }
+.shell { width: min(1380px, 100%); margin: 0 auto; padding: 28px; }
+.lock-shell { min-height: 100vh; display: grid; place-items: center; }
+.lock-card { width: min(420px, 100%); display: grid; gap: 14px; }
+.lock-card span { color: #60a5fa; font-weight: 800; letter-spacing: .16em; }
+header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+header div { display: flex; align-items: baseline; gap: 12px; }
+.header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.header-actions button { white-space: nowrap; }
+header span { color: #60a5fa; font-weight: 800; letter-spacing: .16em; }
+h1 { font-size: 28px; margin: 0; }
+h2 { font-size: 17px; margin: 0 0 16px; }
+.card { min-width: 0; background: rgba(10, 25, 44, .9); border: 1px solid rgba(96, 165, 250, .2); border-radius: 16px; padding: 18px; box-shadow: 0 18px 45px rgba(0,0,0,.22); }
+.connection { display: grid; grid-template-columns: 1.2fr .8fr 1.4fr; gap: 14px; margin-bottom: 16px; }
+label { display: grid; gap: 7px; color: #93c5fd; font-size: 13px; }
+input { width: 100%; border: 1px solid #294663; background: #07111f; color: #eff6ff; border-radius: 9px; padding: 10px 11px; }
+.grid { display: grid; grid-template-columns: 1.6fr .8fr; gap: 16px; margin-bottom: 16px; }
+.issue { display: grid; grid-template-columns: 150px 1fr auto; align-items: end; gap: 12px; }
+.issue h2 { grid-column: 1 / -1; }
+.issued { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; gap: 9px; border: 1px solid #1d4ed8; background: #0b1f3a; padding: 13px; border-radius: 10px; }
+.issued small { grid-column: 1 / -1; color: #fbbf24; }
+.issued code { overflow-wrap: anywhere; color: #bfdbfe; }
+.stats { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px 12px; }
+.stats h2 { grid-column: 1 / -1; }
+.stats strong { font-size: 24px; color: #60a5fa; }
+.stats span { color: #a7bfd8; }
+.tools { display: grid; grid-template-columns: .9fr 1.1fr; gap: 16px; margin-bottom: 16px; }
+.status-card, .admin-tools { display: grid; gap: 12px; align-content: start; }
+.status-card p { display: grid; grid-template-columns: 110px 1fr; gap: 10px; margin: 0; }
+.status-card p strong { color: #60a5fa; }
+.status-card p span, .admin-tools code { color: #a7bfd8; overflow-wrap: anywhere; }
+.tool-row { display: grid; grid-template-columns: 1fr auto; gap: 9px; align-items: center; }
+.table-card { margin-bottom: 16px; }
+.table-wrap { overflow: auto; max-height: 360px; }
+table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px; }
+th { position: sticky; top: 0; background: #10243b; color: #93c5fd; text-align: left; }
+th, td { padding: 11px 9px; border-bottom: 1px solid #1c334b; vertical-align: middle; }
+td code { white-space: pre-wrap; word-break: break-all; color: #bfdbfe; }
+.badge { display: inline-block; padding: 4px 8px; border-radius: 999px; font-weight: 700; }
+.badge.active { background: #064e3b; color: #a7f3d0; }
+.badge.expired { background: #713f12; color: #fde68a; }
+.badge.revoked { background: #7f1d1d; color: #fecaca; }
+footer { min-height: 24px; color: #bfdbfe; padding: 4px 2px; overflow-wrap: anywhere; }
+@media (max-width: 1050px) { .connection, .grid, .tools { grid-template-columns: 1fr; } .issue { grid-template-columns: 1fr; } .issued { grid-column: 1; } }
+@media (max-width: 760px) { .shell { padding: 16px; } header { align-items: stretch; flex-direction: column; gap: 12px; } header div { display: block; } .header-actions { display: flex; justify-content: stretch; } .header-actions button { width: 100%; } .issued, .tool-row { grid-template-columns: 1fr; } .status-card p { grid-template-columns: 1fr; gap: 3px; } button.danger { margin-left: 0; margin-top: 6px; } }

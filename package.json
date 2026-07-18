@@ -1,0 +1,17 @@
+{
+  "name": "akfes-v2",
+  "private": true,
+  "version": "2.0.0",
+  "workspaces": [
+    "apps/desktop",
+    "apps/admin"
+  ],
+  "scripts": {
+    "desktop:dev": "npm --workspace apps/desktop run tauri dev",
+    "desktop:build": "npm --workspace apps/desktop run tauri build",
+    "desktop:web": "npm --workspace apps/desktop run dev",
+    "admin:dev": "npm --workspace apps/admin run tauri dev",
+    "admin:build": "npm --workspace apps/admin run tauri build",
+    "admin:web": "npm --workspace apps/admin run dev"
+  }
+}

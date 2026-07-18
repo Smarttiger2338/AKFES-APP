@@ -1,0 +1,232 @@
+.status-pill.serial-connected {
+  color: #b9f7d0;
+  border-color: rgba(52, 211, 153, 0.42);
+  background: rgba(16, 185, 129, 0.13);
+}
+
+.status-pill.serial-connecting {
+  color: #c9ddff;
+  border-color: rgba(96, 165, 250, 0.42);
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.status-pill.serial-error {
+  color: #ffc4cb;
+  border-color: rgba(248, 113, 113, 0.42);
+  background: rgba(220, 38, 38, 0.13);
+}
+
+.status-pill.serial-disconnected {
+  color: #a9bed8;
+  border-color: rgba(148, 163, 184, 0.28);
+  background: rgba(100, 116, 139, 0.1);
+}
+
+.serial-stage {
+  align-items: stretch;
+}
+
+.serial-stage > div:first-child {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.device-status {
+  width: min(360px, 100%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 14px 16px;
+  border: 1px solid rgba(125, 166, 219, 0.18);
+  border-radius: 14px;
+  background: rgba(7, 20, 37, 0.5);
+}
+
+.device-status strong,
+.device-status small {
+  display: block;
+}
+
+.device-status strong {
+  margin-bottom: 3px;
+  font-size: 13px;
+}
+
+.device-status small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.device-dot {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #64748b;
+  box-shadow: 0 0 0 5px rgba(100, 116, 139, 0.12);
+}
+
+.device-status.connecting .device-dot {
+  background: #60a5fa;
+  box-shadow: 0 0 0 5px rgba(96, 165, 250, 0.14);
+  animation: device-pulse 1.2s ease-in-out infinite;
+}
+
+.device-status.connected .device-dot {
+  background: #34d399;
+  box-shadow: 0 0 0 5px rgba(52, 211, 153, 0.14);
+}
+
+.device-status.error .device-dot {
+  background: #f87171;
+  box-shadow: 0 0 0 5px rgba(248, 113, 113, 0.14);
+}
+
+.serial-card {
+  align-content: start;
+}
+
+.button-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.button-row.compact {
+  width: min(280px, 100%);
+}
+
+.button-row.compact button {
+  min-height: 38px;
+  padding-inline: 12px;
+  font-size: 12px;
+}
+
+.secondary.danger {
+  color: #ffd1d5;
+  border-color: rgba(248, 113, 113, 0.26);
+  background: rgba(220, 38, 38, 0.1);
+}
+
+.mapping-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid rgba(119, 169, 234, 0.16);
+  border-radius: 14px;
+  background: rgba(5, 17, 33, 0.55);
+  min-width: 0;
+}
+
+.mapping-panel span,
+.mapping-panel strong {
+  display: block;
+}
+
+.mapping-panel span {
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.mapping-panel strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.led-tests .success-test {
+  color: #baf7d2;
+  border-color: rgba(52, 211, 153, 0.22);
+}
+
+.led-tests .fail-test {
+  color: #ffc7cc;
+  border-color: rgba(248, 113, 113, 0.22);
+}
+
+.serial-log {
+  min-height: 96px;
+  max-height: min(148px, 28dvh);
+  margin: 0;
+  padding: 13px 14px;
+  overflow: auto;
+  border: 1px solid rgba(108, 153, 212, 0.16);
+  border-radius: 13px;
+  color: #9db9dc;
+  background: rgba(3, 11, 23, 0.72);
+  font: 11px/1.55 "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.password-summary {
+  width: min(390px, 100%);
+  display: grid;
+  gap: 9px;
+  margin-top: 24px;
+  padding: 18px;
+  border: 1px solid rgba(108, 157, 222, 0.18);
+  border-radius: 16px;
+  background: rgba(7, 21, 40, 0.56);
+}
+
+.password-summary span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.password-summary strong {
+  min-height: 32px;
+  overflow: hidden;
+  color: #d9e8ff;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 20px;
+  letter-spacing: 0.18em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.password-summary small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.password-summary button {
+  justify-self: start;
+  min-height: 38px;
+}
+
+@keyframes device-pulse {
+  0%, 100% {
+    opacity: 0.65;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@media (max-width: 760px) {
+  .mapping-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .button-row,
+  .button-row.compact {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .device-status.connecting .device-dot {
+    animation: none;
+  }
+}
