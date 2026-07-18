@@ -20,6 +20,15 @@ The local runtime config is stored at:
 The file is protected with the current Windows user account. Opening the file should not reveal
 `admin_token` or `license_secret` in plain text.
 
+If Windows can no longer decrypt this file, close AKFES and run:
+
+```text
+RESET_LOCAL_CONFIG.bat
+```
+
+The helper backs up `server-runtime.json` and creates a new protected local config. It keeps the
+SQLite license database, but licenses signed with the old local secret may need to be reissued.
+
 ## License Database Backup
 
 The local SQLite database is stored at:
