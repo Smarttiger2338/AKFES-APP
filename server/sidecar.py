@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import shutil
+import stat
+import time
 from pathlib import Path
 
 import uvicorn
@@ -28,14 +31,18 @@ def load_or_create_runtime_config(directory: Path) -> dict[str, str]:
                 return payload
         except (OSError, ValueError, TypeError):
             pass
+        backup_path = directory / f"server-runtime.invalid-{int(time.time())}.json"
+        shutil.copy2(config_path, backup_path)
 
     payload = {
         "license_secret": secrets.token_urlsafe(48),
         "admin_token": secrets.token_urlsafe(48),
+        "created_at": str(int(time.time())),
     }
     temporary = config_path.with_suffix(".tmp")
     temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     temporary.replace(config_path)
+    config_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
     return payload
 
 

@@ -2,7 +2,7 @@ node_modules/
 build/
 dist/
 .vite/
-apps/desktop/src-tauri/target/
+apps/*/src-tauri/target/
 apps/desktop/src-tauri/gen/
 apps/*/src-tauri/binaries/*.exe
 *.spec

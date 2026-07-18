@@ -11,6 +11,8 @@ button.danger { border-color: #7f1d1d; color: #fecaca; margin-left: 6px; }
 .shell { width: min(1380px, 100%); margin: 0 auto; padding: 28px; }
 header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
 header div { display: flex; align-items: baseline; gap: 12px; }
+.header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.header-actions button { white-space: nowrap; }
 header span { color: #60a5fa; font-weight: 800; letter-spacing: .16em; }
 h1 { font-size: 28px; margin: 0; }
 h2 { font-size: 17px; margin: 0 0 16px; }
@@ -40,4 +42,4 @@ td code { white-space: pre-wrap; word-break: break-all; color: #bfdbfe; }
 .badge.revoked { background: #7f1d1d; color: #fecaca; }
 footer { min-height: 24px; color: #bfdbfe; padding: 4px 2px; overflow-wrap: anywhere; }
 @media (max-width: 1050px) { .connection, .grid { grid-template-columns: 1fr; } .issue { grid-template-columns: 1fr; } .issued { grid-column: 1; } }
-@media (max-width: 760px) { .shell { padding: 16px; } header { align-items: stretch; flex-direction: column; gap: 12px; } header div { display: block; } .issued { grid-template-columns: 1fr; } button.danger { margin-left: 0; margin-top: 6px; } }
+@media (max-width: 760px) { .shell { padding: 16px; } header { align-items: stretch; flex-direction: column; gap: 12px; } header div { display: block; } .header-actions { display: flex; justify-content: stretch; } .header-actions button { width: 100%; } .issued { grid-template-columns: 1fr; } button.danger { margin-left: 0; margin-top: 6px; } }

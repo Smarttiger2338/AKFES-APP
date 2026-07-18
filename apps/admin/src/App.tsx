@@ -119,7 +119,10 @@ function App() {
   };
 
   const mutateLicense = async (licenseId: number, action: "revoke" | "reset") => {
-    const reason = window.prompt(action === "revoke" ? "취소 사유" : "장치 바인딩 초기화 사유", "관리자 요청");
+    const reason = window.prompt(
+      action === "revoke" ? "취소 사유" : "장치 바인딩 초기화 사유",
+      "관리자 요청",
+    );
     if (reason === null) return;
     const path = action === "revoke"
       ? `/api/v2/admin/licenses/${licenseId}/revoke`
@@ -136,11 +139,33 @@ function App() {
     }
   };
 
+  const rotateAdminToken = async () => {
+    const confirmed = window.confirm(
+      "로컬 관리자 토큰을 새로 생성할까요?\n\n현재 관리자 앱이 시작한 로컬 서버가 다시 시작되고 기존 관리자 토큰은 즉시 무효화됩니다.",
+    );
+    if (!confirmed) return;
+
+    setBusy(true);
+    try {
+      const token = await invoke<string>("rotate_local_admin_token");
+      setAdminToken(token);
+      setNotice("새 로컬 관리자 토큰을 생성하고 서버를 다시 시작했습니다.");
+      await refresh();
+    } catch (error) {
+      setNotice(`관리자 토큰 재생성 실패: ${String(error)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <main className="shell">
       <header>
         <div><span>AKFES</span><h1>License Manager</h1></div>
-        <button onClick={() => void refresh()} disabled={busy || !adminToken}>새로고침</button>
+        <div className="header-actions">
+          <button onClick={() => void rotateAdminToken()} disabled={busy || !adminToken}>관리자 토큰 재생성</button>
+          <button onClick={() => void refresh()} disabled={busy || !adminToken}>새로고침</button>
+        </div>
       </header>
 
       <section className="connection card">
@@ -175,7 +200,7 @@ function App() {
 
       <section className="card table-card">
         <h2>감사 로그</h2>
-        <div className="table-wrap"><table><thead><tr><th>시각</th><th>작업</th><th>관리자</th><th>대상</th><th>세부 정보</th></tr></thead><tbody>
+        <div className="table-wrap"><table><thead><tr><th>시각</th><th>작업</th><th>관리자</th><th>대상</th><th>상세 정보</th></tr></thead><tbody>
           {audit.map((item) => <tr key={item.audit_id}><td>{formatTime(item.created_at)}</td><td>{item.action}</td><td>{item.actor}</td><td>{item.target_type} {item.target_id ?? ""}</td><td><code>{JSON.stringify(item.details)}</code></td></tr>)}
         </tbody></table></div>
       </section>
