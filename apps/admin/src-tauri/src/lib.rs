@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::Write;
 use std::net::{SocketAddr, TcpStream};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
@@ -15,6 +16,14 @@ struct RuntimeConfig {
     created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     admin_token_rotated_at: Option<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct ProtectedRuntimeConfig {
+    version: u8,
+    protected: bool,
+    protection: String,
+    payload: String,
 }
 
 #[derive(Default)]
@@ -65,16 +74,82 @@ fn generate_admin_token() -> Result<String, String> {
     Ok(token)
 }
 
-fn read_runtime_config() -> Result<RuntimeConfig, String> {
-    let path = runtime_config_path()?;
-    let content = fs::read_to_string(&path)
-        .map_err(|error| format!("Could not read local server config: {error}"))?;
-    let config: RuntimeConfig =
-        serde_json::from_str(&content).map_err(|_| "Local server config is damaged.".to_string())?;
+fn unprotect_payload(payload: &str) -> Result<String, String> {
+    let script = "Add-Type -AssemblyName System.Security; $bytes=[Convert]::FromBase64String($args[0]); $plain=[Security.Cryptography.ProtectedData]::Unprotect($bytes,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser); [Text.Encoding]::UTF8.GetString($plain)";
+    let output = Command::new("powershell")
+        .args(["-NoProfile", "-Command", script, payload])
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .map_err(|error| format!("Could not start local config decryptor: {error}"))?;
+
+    if !output.status.success() {
+        return Err("Local server config could not be decrypted by this Windows user.".to_string());
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn protect_payload(content: &str) -> Result<String, String> {
+    let script = "$json=[Console]::In.ReadToEnd(); Add-Type -AssemblyName System.Security; $bytes=[Text.Encoding]::UTF8.GetBytes($json); $cipher=[Security.Cryptography.ProtectedData]::Protect($bytes,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser); [Convert]::ToBase64String($cipher)";
+    let mut child = Command::new("powershell")
+        .args(["-NoProfile", "-Command", script])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|error| format!("Could not start local config encryptor: {error}"))?;
+
+    {
+        let stdin = child
+            .stdin
+            .as_mut()
+            .ok_or_else(|| "Local config encryptor input was not available.".to_string())?;
+        stdin
+            .write_all(content.as_bytes())
+            .map_err(|error| format!("Could not send local config to encryptor: {error}"))?;
+    }
+    drop(child.stdin.take());
+
+    let output = child
+        .wait_with_output()
+        .map_err(|error| format!("Local config encryptor did not finish: {error}"))?;
+
+    if !output.status.success() {
+        return Err("Local server config encryption failed.".to_string());
+    }
+
+    let payload = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if payload.len() < 32 {
+        return Err("Local server config encryption returned an invalid payload.".to_string());
+    }
+    Ok(payload)
+}
+
+fn validate_runtime_config(config: RuntimeConfig) -> Result<RuntimeConfig, String> {
     if config.license_secret.len() < 32 || config.admin_token.len() < 32 {
         return Err("Local server config secrets are invalid.".to_string());
     }
     Ok(config)
+}
+
+fn read_runtime_config() -> Result<RuntimeConfig, String> {
+    let path = runtime_config_path()?;
+    let content = fs::read_to_string(&path)
+        .map_err(|error| format!("Could not read local server config: {error}"))?;
+
+    if let Ok(envelope) = serde_json::from_str::<ProtectedRuntimeConfig>(&content) {
+        if envelope.version == 2 && envelope.protected && !envelope.payload.is_empty() {
+            let plaintext = unprotect_payload(&envelope.payload)?;
+            let config: RuntimeConfig = serde_json::from_str(&plaintext)
+                .map_err(|_| "Local server config payload is damaged.".to_string())?;
+            return validate_runtime_config(config);
+        }
+    }
+
+    let config: RuntimeConfig = serde_json::from_str(&content)
+        .map_err(|_| "Local server config is damaged.".to_string())?;
+    validate_runtime_config(config)
 }
 
 fn write_runtime_config(config: &RuntimeConfig) -> Result<(), String> {
@@ -84,8 +159,16 @@ fn write_runtime_config(config: &RuntimeConfig) -> Result<(), String> {
         .ok_or_else(|| "Local server config path is invalid.".to_string())?;
     fs::create_dir_all(directory)
         .map_err(|error| format!("Could not create local server config directory: {error}"))?;
-    let content = serde_json::to_string_pretty(config)
+    let plaintext = serde_json::to_string(config)
         .map_err(|error| format!("Could not serialize local server config: {error}"))?;
+    let envelope = ProtectedRuntimeConfig {
+        version: 2,
+        protected: true,
+        protection: "windows-dpapi-current-user".to_string(),
+        payload: protect_payload(&plaintext)?,
+    };
+    let content = serde_json::to_string_pretty(&envelope)
+        .map_err(|error| format!("Could not serialize protected local server config: {error}"))?;
     let temporary = path.with_extension("tmp");
     fs::write(&temporary, content)
         .map_err(|error| format!("Could not write temporary local server config: {error}"))?;
