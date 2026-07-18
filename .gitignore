@@ -1,6 +1,7 @@
 node_modules/
 build/
 dist/
+release-local/
 .vite/
 .tauri-localappdata/
 apps/*/src-tauri/target/
