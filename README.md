@@ -1,5 +1,8 @@
 # AKFES v2
 
+Operational notes for administrator PINs, backups, local audit logs, port fallback, and updater
+release preparation are in [`OPERATIONS.md`](OPERATIONS.md).
+
 Arduino 키패드와 Tauri 데스크톱 앱을 이용해 파일을 AES-256-GCM으로 암호화·복호화하는 프로젝트입니다.
 
 ## 구성

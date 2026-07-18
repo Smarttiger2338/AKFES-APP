@@ -1,12 +1,15 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
-use std::net::{SocketAddr, TcpStream};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager, RunEvent, State};
+
+const MAX_PIN_ATTEMPTS: u32 = 5;
+const PIN_LOCK_SECONDS: u64 = 300;
 
 #[derive(Deserialize, Serialize)]
 struct RuntimeConfig {
@@ -20,6 +23,10 @@ struct RuntimeConfig {
     admin_pin_salt: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     admin_pin_hash: Option<String>,
+    #[serde(default)]
+    admin_pin_failed_attempts: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    admin_pin_locked_until: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -34,12 +41,16 @@ struct ProtectedRuntimeConfig {
 struct AdminSecurityStatus {
     pin_set: bool,
     config_protected: bool,
+    failed_attempts: u32,
+    locked_until: Option<String>,
 }
 
 #[derive(Serialize)]
 struct LocalServerStatus {
     running: bool,
     owned_by_admin_app: bool,
+    port: u16,
+    server_url: String,
     config_protected: bool,
     config_path: String,
     database_path: String,
@@ -51,6 +62,13 @@ struct LocalServerStatus {
 #[derive(Serialize)]
 struct BackupResult {
     path: String,
+}
+
+#[derive(Deserialize, Serialize)]
+struct LocalAuditEntry {
+    action: String,
+    created_at: String,
+    detail: String,
 }
 
 #[derive(Deserialize)]
@@ -76,6 +94,7 @@ struct UpdateStatus {
 struct ServerSidecar {
     child: Mutex<Option<Child>>,
     startup_error: Mutex<Option<String>>,
+    port: Mutex<Option<u16>>,
 }
 
 fn app_data_directory() -> Result<PathBuf, String> {
@@ -97,12 +116,67 @@ fn backup_directory() -> Result<PathBuf, String> {
     Ok(app_data_directory()?.join("backups"))
 }
 
+fn local_audit_path() -> Result<PathBuf, String> {
+    Ok(app_data_directory()?.join("admin-audit.jsonl"))
+}
+
 fn now_unix_string() -> String {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_else(|_| Duration::from_secs(0))
         .as_secs()
         .to_string()
+}
+
+fn now_unix_seconds() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_else(|_| Duration::from_secs(0))
+        .as_secs()
+}
+
+fn append_local_audit(action: &str, detail: &str) {
+    let Ok(path) = local_audit_path() else {
+        return;
+    };
+    if let Some(directory) = path.parent() {
+        let _ = fs::create_dir_all(directory);
+    }
+    let entry = LocalAuditEntry {
+        action: action.to_string(),
+        created_at: now_unix_string(),
+        detail: detail.to_string(),
+    };
+    if let Ok(mut line) = serde_json::to_string(&entry) {
+        line.push('\n');
+        let _ = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .and_then(|mut file| file.write_all(line.as_bytes()));
+    }
+}
+
+fn find_available_port() -> Result<u16, String> {
+    for port in 8000..8050 {
+        if TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            return Ok(port);
+        }
+    }
+    Err("No available local server port was found.".to_string())
+}
+
+fn sidecar_port(sidecar: &ServerSidecar) -> u16 {
+    sidecar
+        .port
+        .lock()
+        .ok()
+        .and_then(|guard| *guard)
+        .unwrap_or(8000)
+}
+
+fn server_url(port: u16) -> String {
+    format!("http://127.0.0.1:{port}")
 }
 
 fn powershell_stdout(script: &str, args: &[&str]) -> Result<String, String> {
@@ -245,8 +319,8 @@ fn write_runtime_config(config: &RuntimeConfig) -> Result<(), String> {
     Ok(())
 }
 
-fn server_is_running() -> bool {
-    let address = SocketAddr::from(([127, 0, 0, 1], 8000));
+fn server_is_running(port: u16) -> bool {
+    let address = SocketAddr::from(([127, 0, 0, 1], port));
     TcpStream::connect_timeout(&address, Duration::from_millis(300)).is_ok()
 }
 
@@ -263,11 +337,8 @@ fn record_startup_error(sidecar: &ServerSidecar, message: String) {
 fn start_server_sidecar(app: &AppHandle, sidecar: &ServerSidecar) {
     #[cfg(target_os = "windows")]
     {
-        if server_is_running() {
-            return;
-        }
-
         let result = (|| -> Result<(), String> {
+            let port = find_available_port()?;
             let executable = app
                 .path()
                 .resource_dir()
@@ -280,6 +351,7 @@ fn start_server_sidecar(app: &AppHandle, sidecar: &ServerSidecar) {
             }
 
             let child = Command::new(&executable)
+                .env("AKFES_PORT", port.to_string())
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
@@ -289,6 +361,14 @@ fn start_server_sidecar(app: &AppHandle, sidecar: &ServerSidecar) {
                 .child
                 .lock()
                 .map_err(|_| "Server process lock was poisoned.".to_string())? = Some(child);
+            *sidecar
+                .port
+                .lock()
+                .map_err(|_| "Server port lock was poisoned.".to_string())? = Some(port);
+            append_local_audit(
+                "server_start",
+                &format!("Started local server on port {port}."),
+            );
             Ok(())
         })();
 
@@ -310,6 +390,9 @@ fn stop_server_sidecar(sidecar: &ServerSidecar) {
         }
         guard.take();
     }
+    if let Ok(mut port) = sidecar.port.lock() {
+        port.take();
+    }
 }
 
 fn sidecar_owns_server(sidecar: &ServerSidecar) -> Result<bool, String> {
@@ -322,7 +405,7 @@ fn sidecar_owns_server(sidecar: &ServerSidecar) -> Result<bool, String> {
 
 fn ensure_server_can_restart(sidecar: &ServerSidecar) -> Result<bool, String> {
     let owns_server = sidecar_owns_server(sidecar)?;
-    if server_is_running() && !owns_server {
+    if server_is_running(sidecar_port(sidecar)) && !owns_server {
         return Err(
             "Another AKFES server is already running. Stop it, then try again.".to_string(),
         );
@@ -344,6 +427,23 @@ fn restore_database_file(from: &Path, to: &Path) -> Result<(), String> {
         fs::remove_file(to)
             .map_err(|error| format!("Could not remove stale database file: {error}"))?;
     }
+    Ok(())
+}
+
+fn copy_backup_folder(from: &Path, to: &Path) -> Result<(), String> {
+    if !from.join("akfes.sqlite3").exists() {
+        return Err("Backup folder does not contain akfes.sqlite3.".to_string());
+    }
+    fs::create_dir_all(to).map_err(|error| format!("Could not create backup folder: {error}"))?;
+    copy_if_exists(&from.join("akfes.sqlite3"), &to.join("akfes.sqlite3"))?;
+    copy_if_exists(
+        &from.join("akfes.sqlite3-wal"),
+        &to.join("akfes.sqlite3-wal"),
+    )?;
+    copy_if_exists(
+        &from.join("akfes.sqlite3-shm"),
+        &to.join("akfes.sqlite3-shm"),
+    )?;
     Ok(())
 }
 
@@ -412,7 +512,7 @@ fn restart_owned_server(
 ) -> Result<(), String> {
     if was_owned {
         start_server_sidecar(app, sidecar);
-        if !server_is_running() {
+        if !server_is_running(sidecar_port(sidecar)) {
             return Err("The local server did not restart.".to_string());
         }
     }
@@ -452,6 +552,8 @@ fn get_admin_security_status() -> Result<AdminSecurityStatus, String> {
     Ok(AdminSecurityStatus {
         pin_set: config.admin_pin_hash.is_some(),
         config_protected: protected,
+        failed_attempts: config.admin_pin_failed_attempts,
+        locked_until: config.admin_pin_locked_until,
     })
 }
 
@@ -465,23 +567,60 @@ fn set_admin_pin(pin: String) -> Result<AdminSecurityStatus, String> {
     let salt = generate_secret()?;
     config.admin_pin_salt = Some(salt.clone());
     config.admin_pin_hash = Some(hash_pin(pin.trim(), &salt)?);
+    config.admin_pin_failed_attempts = 0;
+    config.admin_pin_locked_until = None;
     write_runtime_config(&config)?;
+    append_local_audit("admin_pin_set", "Administrator PIN was set or changed.");
     Ok(AdminSecurityStatus {
         pin_set: true,
         config_protected: true,
+        failed_attempts: 0,
+        locked_until: None,
     })
 }
 
 #[tauri::command]
 fn verify_admin_pin(pin: String) -> Result<bool, String> {
-    let config = read_runtime_config()?;
+    let mut config = read_runtime_config()?;
     let Some(salt) = config.admin_pin_salt.as_deref() else {
         return Ok(true);
     };
     let Some(expected) = config.admin_pin_hash.as_deref() else {
         return Ok(true);
     };
-    Ok(hash_pin(pin.trim(), salt)? == expected)
+
+    if let Some(locked_until) = config
+        .admin_pin_locked_until
+        .as_deref()
+        .and_then(|value| value.parse::<u64>().ok())
+    {
+        if locked_until > now_unix_seconds() {
+            append_local_audit(
+                "admin_pin_locked",
+                "PIN unlock attempt rejected during lockout.",
+            );
+            return Err(format!("PIN is locked until {locked_until}."));
+        }
+    }
+
+    let verified = hash_pin(pin.trim(), salt)? == expected;
+    if verified {
+        config.admin_pin_failed_attempts = 0;
+        config.admin_pin_locked_until = None;
+        write_runtime_config(&config)?;
+        append_local_audit("admin_pin_unlock", "Administrator panel unlocked.");
+        return Ok(true);
+    }
+
+    config.admin_pin_failed_attempts = config.admin_pin_failed_attempts.saturating_add(1);
+    if config.admin_pin_failed_attempts >= MAX_PIN_ATTEMPTS {
+        config.admin_pin_locked_until = Some((now_unix_seconds() + PIN_LOCK_SECONDS).to_string());
+        append_local_audit("admin_pin_lockout", "Too many failed PIN attempts.");
+    } else {
+        append_local_audit("admin_pin_failed", "Failed administrator PIN attempt.");
+    }
+    write_runtime_config(&config)?;
+    Ok(false)
 }
 
 #[tauri::command]
@@ -498,10 +637,11 @@ fn rotate_local_admin_token(
 
     stop_server_sidecar(sidecar.inner());
     start_server_sidecar(&app, sidecar.inner());
-    if !server_is_running() {
+    if !server_is_running(sidecar_port(sidecar.inner())) {
         return Err("The token was saved, but the local server did not restart.".to_string());
     }
 
+    append_local_audit("admin_token_rotate", "Administrator token rotated.");
     Ok(config.admin_token)
 }
 
@@ -509,6 +649,7 @@ fn rotate_local_admin_token(
 fn get_local_server_status(sidecar: State<'_, ServerSidecar>) -> Result<LocalServerStatus, String> {
     let config_path = runtime_config_path()?;
     let database_path = database_path()?;
+    let port = sidecar_port(sidecar.inner());
     let protected = read_runtime_config_file()
         .map(|(_, protected)| protected)
         .unwrap_or(false);
@@ -520,8 +661,10 @@ fn get_local_server_status(sidecar: State<'_, ServerSidecar>) -> Result<LocalSer
         .and_then(|guard| guard.clone());
 
     Ok(LocalServerStatus {
-        running: server_is_running(),
+        running: server_is_running(port),
         owned_by_admin_app: sidecar_owns_server(sidecar.inner())?,
+        port,
+        server_url: server_url(port),
         config_protected: protected,
         config_path: config_path.display().to_string(),
         database_path: database_path.display().to_string(),
@@ -542,9 +685,14 @@ fn backup_local_database(
     }
     let backup = create_database_backup("backup");
     restart_owned_server(&app, sidecar.inner(), was_owned)?;
-    Ok(BackupResult {
+    let result = BackupResult {
         path: backup?.display().to_string(),
-    })
+    };
+    append_local_audit(
+        "database_backup",
+        &format!("Created backup at {}.", result.path),
+    );
+    Ok(result)
 }
 
 #[tauri::command]
@@ -553,35 +701,106 @@ fn restore_latest_database_backup(
     sidecar: State<'_, ServerSidecar>,
 ) -> Result<BackupResult, String> {
     let was_owned = ensure_server_can_restart(sidecar.inner())?;
-    let backup = latest_backup_path()?.ok_or_else(|| "No local backup was found.".to_string())?;
-    let source = backup.join("akfes.sqlite3");
-    if !source.exists() {
-        return Err("Latest backup does not contain a database file.".to_string());
-    }
-
     if was_owned {
         stop_server_sidecar(sidecar.inner());
     }
 
-    let _ = create_database_backup("before-restore");
-    let destination = database_path()?;
-    let app_data = app_data_directory()?;
-    fs::create_dir_all(&app_data)
-        .map_err(|error| format!("Could not create app data directory: {error}"))?;
-    restore_database_file(&source, &destination)?;
-    restore_database_file(
-        &backup.join("akfes.sqlite3-wal"),
-        &destination.with_extension("sqlite3-wal"),
-    )?;
-    restore_database_file(
-        &backup.join("akfes.sqlite3-shm"),
-        &destination.with_extension("sqlite3-shm"),
-    )?;
-    restart_owned_server(&app, sidecar.inner(), was_owned)?;
+    let result = (|| -> Result<BackupResult, String> {
+        let backup =
+            latest_backup_path()?.ok_or_else(|| "No local backup was found.".to_string())?;
+        let source = backup.join("akfes.sqlite3");
+        if !source.exists() {
+            return Err("Latest backup does not contain a database file.".to_string());
+        }
 
+        let _ = create_database_backup("before-restore");
+        let destination = database_path()?;
+        let app_data = app_data_directory()?;
+        fs::create_dir_all(&app_data)
+            .map_err(|error| format!("Could not create app data directory: {error}"))?;
+        restore_database_file(&source, &destination)?;
+        restore_database_file(
+            &backup.join("akfes.sqlite3-wal"),
+            &destination.with_extension("sqlite3-wal"),
+        )?;
+        restore_database_file(
+            &backup.join("akfes.sqlite3-shm"),
+            &destination.with_extension("sqlite3-shm"),
+        )?;
+
+        append_local_audit(
+            "database_restore",
+            &format!("Restored backup from {}.", backup.display()),
+        );
+        Ok(BackupResult {
+            path: backup.display().to_string(),
+        })
+    })();
+
+    restart_owned_server(&app, sidecar.inner(), was_owned)?;
+    result
+}
+
+#[tauri::command]
+fn export_latest_database_backup(destination_directory: String) -> Result<BackupResult, String> {
+    let source = latest_backup_path()?.ok_or_else(|| "No local backup was found.".to_string())?;
+    let destination_root = PathBuf::from(destination_directory.trim());
+    if destination_root.as_os_str().is_empty() {
+        return Err("Destination folder is required.".to_string());
+    }
+    fs::create_dir_all(&destination_root)
+        .map_err(|error| format!("Could not create destination folder: {error}"))?;
+    let destination = destination_root.join(
+        source
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("akfes-exported-backup"),
+    );
+    copy_backup_folder(&source, &destination)?;
+    append_local_audit(
+        "database_backup_export",
+        &format!("Exported backup to {}.", destination.display()),
+    );
     Ok(BackupResult {
-        path: backup.display().to_string(),
+        path: destination.display().to_string(),
     })
+}
+
+#[tauri::command]
+fn import_database_backup(source_directory: String) -> Result<BackupResult, String> {
+    let source = PathBuf::from(source_directory.trim());
+    if source.as_os_str().is_empty() {
+        return Err("Source backup folder is required.".to_string());
+    }
+    let backup_root = backup_directory()?;
+    fs::create_dir_all(&backup_root)
+        .map_err(|error| format!("Could not create backup directory: {error}"))?;
+    let destination = backup_root.join(format!("akfes-imported-{}", now_unix_string()));
+    copy_backup_folder(&source, &destination)?;
+    append_local_audit(
+        "database_backup_import",
+        &format!("Imported backup from {}.", source.display()),
+    );
+    Ok(BackupResult {
+        path: destination.display().to_string(),
+    })
+}
+
+#[tauri::command]
+fn list_local_admin_audit() -> Result<Vec<LocalAuditEntry>, String> {
+    let path = local_audit_path()?;
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let content = fs::read_to_string(&path)
+        .map_err(|error| format!("Could not read local audit log: {error}"))?;
+    let mut entries = content
+        .lines()
+        .filter_map(|line| serde_json::from_str::<LocalAuditEntry>(line).ok())
+        .collect::<Vec<_>>();
+    entries.reverse();
+    entries.truncate(200);
+    Ok(entries)
 }
 
 #[tauri::command]
@@ -659,6 +878,9 @@ pub fn run() {
             get_local_server_status,
             backup_local_database,
             restore_latest_database_backup,
+            export_latest_database_backup,
+            import_database_backup,
+            list_local_admin_audit,
             check_for_updates,
             get_startup_error
         ])

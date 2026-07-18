@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
+import { invoke } from "@tauri-apps/api/core";
 
 import {
   ApiError,
@@ -44,6 +45,14 @@ export default function AuthGate({ children }: AuthGateProps) {
   const [session, setSession] = useState<AuthSession | null>(() => loadStoredSession());
   const [authState, setAuthState] = useState<AuthState>("checking");
   const [message, setMessage] = useState("저장된 세션을 확인하고 있습니다.");
+
+  useEffect(() => {
+    void invoke<string>("get_local_server_url")
+      .then((url) => {
+        setApiUrl(saveApiUrl(url));
+      })
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     let active = true;

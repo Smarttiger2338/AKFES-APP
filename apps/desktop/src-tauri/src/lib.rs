@@ -1,6 +1,7 @@
 use serde::Serialize;
 use serialport::SerialPortType;
 use std::io::{ErrorKind, Read, Write};
+use std::net::TcpListener;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -42,11 +43,35 @@ struct SerialConnection {
 #[derive(Default)]
 struct ServerSidecar {
     child: Mutex<Option<Child>>,
+    port: Mutex<Option<u16>>,
+}
+
+fn find_available_port() -> Result<u16, String> {
+    for port in 8000..8050 {
+        if TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            return Ok(port);
+        }
+    }
+    Err("No available local server port was found.".to_string())
+}
+
+fn sidecar_port(sidecar: &ServerSidecar) -> u16 {
+    sidecar
+        .port
+        .lock()
+        .ok()
+        .and_then(|guard| *guard)
+        .unwrap_or(8000)
+}
+
+fn local_server_url(port: u16) -> String {
+    format!("http://127.0.0.1:{port}")
 }
 
 fn start_server_sidecar(app: &AppHandle, sidecar: &ServerSidecar) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
+        let port = find_available_port()?;
         let executable = app
             .path()
             .resource_dir()
@@ -58,6 +83,7 @@ fn start_server_sidecar(app: &AppHandle, sidecar: &ServerSidecar) -> Result<(), 
             return Ok(());
         }
         let child = Command::new(&executable)
+            .env("AKFES_PORT", port.to_string())
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
@@ -67,6 +93,10 @@ fn start_server_sidecar(app: &AppHandle, sidecar: &ServerSidecar) -> Result<(), 
             .child
             .lock()
             .map_err(|_| "서버 프로세스 잠금이 손상되었습니다.".to_string())? = Some(child);
+        *sidecar
+            .port
+            .lock()
+            .map_err(|_| "Server port lock was poisoned.".to_string())? = Some(port);
     }
     #[cfg(not(target_os = "windows"))]
     {
@@ -82,6 +112,9 @@ fn stop_server_sidecar(sidecar: &ServerSidecar) {
             let _ = child.wait();
         }
         guard.take();
+    }
+    if let Ok(mut port) = sidecar.port.lock() {
+        port.take();
     }
 }
 
@@ -162,8 +195,8 @@ fn select_native_file() -> Result<Option<NativeSelectedFile>, String> {
         .and_then(|value| value.to_str())
         .map(safe_filename)
         .ok_or_else(|| "선택한 파일 이름을 읽을 수 없습니다.".to_string())?;
-    let bytes = std::fs::read(&path)
-        .map_err(|error| format!("선택한 파일을 읽지 못했습니다: {error}"))?;
+    let bytes =
+        std::fs::read(&path).map_err(|error| format!("선택한 파일을 읽지 못했습니다: {error}"))?;
     Ok(Some(NativeSelectedFile {
         filename,
         size_bytes: bytes.len() as u64,
@@ -368,6 +401,11 @@ fn serial_connection_active(connection: State<'_, SerialConnection>) -> Result<b
         .is_some())
 }
 
+#[tauri::command]
+fn get_local_server_url(sidecar: State<'_, ServerSidecar>) -> String {
+    local_server_url(sidecar_port(sidecar.inner()))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
@@ -375,8 +413,7 @@ pub fn run() {
         .manage(ServerSidecar::default())
         .setup(|app| {
             let sidecar = app.state::<ServerSidecar>();
-            start_server_sidecar(app.handle(), sidecar.inner())
-                .map_err(std::io::Error::other)?;
+            start_server_sidecar(app.handle(), sidecar.inner()).map_err(std::io::Error::other)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -386,7 +423,8 @@ pub fn run() {
             connect_serial_port,
             disconnect_serial_port,
             write_serial_command,
-            serial_connection_active
+            serial_connection_active,
+            get_local_server_url
         ])
         .build(tauri::generate_context!())
         .expect("AKFES 데스크톱 애플리케이션을 빌드하지 못했습니다.");

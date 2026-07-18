@@ -160,10 +160,11 @@ def main() -> None:
     configure_environment()
     from app.main import app
 
+    port = int(os.getenv("AKFES_PORT", "8000"))
     uvicorn.run(
         app,
         host="127.0.0.1",
-        port=8000,
+        port=port,
         log_level="warning",
         access_log=False,
     )
