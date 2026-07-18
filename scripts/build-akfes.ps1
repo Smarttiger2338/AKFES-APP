@@ -8,6 +8,11 @@ $ErrorActionPreference = "Stop"
 $rootDir = Split-Path -Parent $PSScriptRoot
 Set-Location $rootDir
 
+$cargoBin = Join-Path $env:USERPROFILE ".cargo\bin"
+if ((Test-Path (Join-Path $cargoBin "cargo.exe")) -and ($env:Path -notlike "*$cargoBin*")) {
+    $env:Path = "$cargoBin;$env:Path"
+}
+
 function Step([string]$Message) {
     Write-Host ""
     Write-Host "==> $Message" -ForegroundColor Cyan
@@ -36,6 +41,7 @@ if ($Mode -ne "web" -or -not $SkipTests) {
 }
 if ($Mode -eq "all" -or $Mode -eq "installer") {
     Require-Command "cargo" "Install Rust and the Tauri Windows build tools."
+    Require-Command "link" "Install Visual Studio Build Tools with the Desktop development with C++ workload."
 }
 
 $version = Get-JsonVersion (Join-Path $rootDir "package.json")
